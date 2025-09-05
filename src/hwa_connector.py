@@ -19,12 +19,31 @@ class HWAClient:
         config = configparser.ConfigParser()
         config.read(config_path)
 
+from src.security import load_key, decrypt_password
+
+class HWAClient:
+    """
+    Main client for interacting with the HCL Workload Automation (HWA) REST API.
+    This client handles the connection and authentication details and provides
+    access to different API services.
+    """
+    def __init__(self, config_path='config/config.ini'):
+        if not os.path.exists(config_path):
+            raise FileNotFoundError(f"Configuration file not found at '{config_path}'.")
+
+        config = configparser.ConfigParser()
+        config.read(config_path)
+
         try:
             self.hostname = config.get('tws', 'hostname')
             self.port = config.getint('tws', 'port')
             self.username = config.get('tws', 'username')
-            self.password = config.get('tws', 'password')
+            encrypted_pass = config.get('tws', 'password')
             self.verify_ssl = config.getboolean('tws', 'verify_ssl', fallback=False)
+
+            key = load_key()
+            self.password = decrypt_password(encrypted_pass.encode('utf-8'), key)
+
         except (configparser.NoSectionError, configparser.NoOptionError) as e:
             raise ValueError(f"Config file is missing a required section/option: {e}")
 

@@ -154,6 +154,8 @@ def save_dashboard_layout():
         logging.error(f"Error saving dashboard layout: {e}")
         return jsonify({"error": str(e)}), 500
 
+from src.security import load_key, encrypt_password
+
 @app.route('/api/config', methods=['POST'])
 def save_config():
     data = request.json
@@ -164,14 +166,19 @@ def save_config():
         config.read(CONFIG_FILE)
     if 'tws' not in config:
         config.add_section('tws')
-    # Update values, ensuring password is only updated if provided
+
+    # Update non-sensitive values
     for key in ['hostname', 'port', 'username']:
         if key in data:
             config.set('tws', key, str(data[key]))
-    if data.get('password'): # Only update password if a new one is sent
-        config.set('tws', 'password', data['password'])
     if 'verify_ssl' in data:
         config.set('tws', 'verify_ssl', 'true' if data['verify_ssl'] else 'false')
+
+    # Handle password encryption
+    if data.get('password'):
+        key = load_key()
+        encrypted_pass = encrypt_password(data['password'], key)
+        config.set('tws', 'password', encrypted_pass.decode('utf-8')) # Store as string
 
     os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
     with open(CONFIG_FILE, 'w') as configfile:
@@ -278,7 +285,60 @@ def run_console():
     logging.info(f"Please open your browser and navigate to {BASE_URL}")
     run_flask()
 
+def initial_setup():
+    """
+    Ensures that necessary configuration files exist on first run.
+    """
+    # Create config directory if it doesn't exist
+    if not os.path.exists('config'):
+        os.makedirs('config')
+
+    # 1. Check for config.ini
+    if not os.path.exists(CONFIG_FILE):
+        logging.info(f"'{CONFIG_FILE}' not found. Creating from template.")
+        try:
+            import shutil
+            shutil.copyfile('config/config.ini.template', CONFIG_FILE)
+        except FileNotFoundError:
+            logging.error("'config/config.ini.template' not found. Cannot create config file.")
+        except Exception as e:
+            logging.error(f"Error creating config file: {e}")
+
+    # 2. Check for dashboard_layout.json
+    if not os.path.exists(LAYOUT_FILE):
+        logging.info(f"'{LAYOUT_FILE}' not found. Creating a default layout.")
+        default_layout = [
+            {
+                "id": "widget_running",
+                "type": "summary_count",
+                "label": "Jobs Running",
+                "icon": "fas fa-running",
+                "api_metric": "running_count",
+                "modal_data_key": "jobs_running",
+                "modal_title": "Running Jobs",
+                "modal_item_renderer": "renderJobItem",
+                "color_class": "color-blue"
+            },
+            {
+                "id": "widget_abend",
+                "type": "summary_count",
+                "label": "Jobs Abend",
+                "icon": "fas fa-exclamation-triangle",
+                "api_metric": "abend_count",
+                "modal_data_key": "jobs_abend",
+                "modal_title": "Abended Jobs",
+                "modal_item_renderer": "renderJobItem",
+                "color_class": "color-red"
+            }
+        ]
+        try:
+            with open(LAYOUT_FILE, 'w', encoding='utf-8') as f:
+                json.dump(default_layout, f, indent=4)
+        except Exception as e:
+            logging.error(f"Error creating default layout file: {e}")
+
 if __name__ == '__main__':
+    initial_setup()
     try:
         import pystray
         import PIL

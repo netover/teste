@@ -6,21 +6,21 @@ block_cipher = None
 
 # The Analysis class is the core of the spec file. It analyzes the main script
 # to find all dependencies, modules, and data files.
+import os
+
+SPEC_DIR = os.path.dirname(os.path.abspath(__file__))
+
 a = Analysis(
-    ['app.py'],  # The main entry point of the application.
-    pathex=['.'],  # The path to search for imports (current directory).
-    binaries=[],  # A list of any non-Python libraries (.dll, .so) to include.
-
-    # This is a crucial section. It tells PyInstaller to bundle non-Python files
-    # into the executable. The format is a list of tuples: (source, destination).
+    ['app.py'],
+    pathex=[SPEC_DIR],
+    binaries=[],
     datas=[
-        ('templates', 'templates'),
-        ('static', 'static'),
-        ('config/config.ini.template', 'config'),
-        ('dashboard_layout.json', '.'),
-        ('icon.png', '.')
+        (os.path.join(SPEC_DIR, 'templates'), 'templates'),
+        (os.path.join(SPEC_DIR, 'static'), 'static'),
+        (os.path.join(SPEC_DIR, 'config/config.ini.template'), 'config'),
+        (os.path.join(SPEC_DIR, 'dashboard_layout.json'), '.'),
+        (os.path.join(SPEC_DIR, 'icon.png'), '.')
     ],
-
     hiddenimports=['pystray._xorg', 'pystray._win32'],
     hookspath=[],
     runtime_hooks=[],
