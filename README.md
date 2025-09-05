@@ -40,6 +40,16 @@ The application runs as a background process with a system tray icon, and the da
 3.  Copy the template to `config.ini` and fill in your details.
 4.  Restart the application. The dashboard can be accessed from the system tray icon or by navigating to `http://localhost:63136`.
 
+## API Connector Capabilities
+
+The core of the application's backend is the `HWAConnector` class found in `src/hwa_connector.py`. It can be used as a standalone library to interact with the HWA/TWS API. Its main features include:
+
+-   **`query_job_streams()`**: Fetches a list of all job streams in the current plan.
+-   **`get_workstation_status(workstation_name)`**: Retrieves the status and details of a specific agent/workstation.
+-   **`cancel_job(job_id)`**: Sends a 'cancel' command to a job in the plan (requires the internal plan job ID).
+
+The file can be run directly (`python3 src/hwa_connector.py`) to see a demonstration of these capabilities.
+
 ## How to Build
 
 To build the executable yourself:
