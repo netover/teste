@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Help - HWA Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <header>
+        <h1>Help & Information</h1>
+    </header>
+    <main id="help-container" style="max-width: 800px; margin: 20px auto; text-align: left;">
+        <section class="help-section">
+            <h2>About the Dashboard</h2>
+            <p>This application is a lightweight, web-based dashboard for monitoring an HCL Workload Automation (HWA) or Tivoli Workload Scheduler (TWS) environment via its REST API.</p>
+            <p>It runs as a background process with a system tray icon, and the dashboard is accessed through a local web URL.</p>
+        </section>
+
+        <section class="help-section">
+            <h2>Configuration</h2>
+            <p>To connect to your HWA/TWS instance, you must provide your connection details.</p>
+            <ol>
+                <li>Click the <strong>Cog (<i class="fas fa-cog"></i>)</strong> icon in the top right of the dashboard.</li>
+                <li>Fill in your HWA/TWS <strong>Hostname</strong>, <strong>Port</strong>, <strong>Username</strong>, and <strong>Password</strong>.</li>
+                <li>The <strong>Verify SSL</strong> checkbox controls whether the application should validate the SSL certificate of the HWA server. Uncheck this for environments with self-signed certificates.</li>
+                <li>Click <strong>Save Configuration</strong>. The settings are saved internally and will be used for all future connections.</li>
+            </ol>
+        </section>
+
+        <section class="help-section">
+            <h2>Features</h2>
+            <ul>
+                <li><strong>Real-time Monitoring:</strong> The dashboard automatically refreshes to show the latest job stream statuses.</li>
+                <li><strong>System Tray Icon:</strong> The application runs in the background. You can open the dashboard or exit the application from the tray icon menu.</li>
+                <li><strong>Start with Windows:</strong> (If on Windows) You can set the application to start automatically when you log in via the tray icon menu.</li>
+            </ul>
+        </section>
+
+        <a href="/" class="nav-link" style="margin-top: 30px;">
+            <i class="fas fa-arrow-left"></i> Back to Dashboard
+        </a>
+    </main>
+</body>
+</html>

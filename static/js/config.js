@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('port').value = config.port || '';
                 document.getElementById('username').value = config.username || '';
                 // Don't populate the password field for security
+                document.getElementById('verify_ssl').checked = (config.verify_ssl === 'true');
             }
         } catch (error) {
             showStatus('Failed to load configuration.', 'error');
@@ -26,9 +27,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const formData = new FormData(form);
         const data = Object.fromEntries(formData.entries());
 
-        // The password field is only sent if the user types something in it.
-        // If it's empty, we don't include it in the payload.
-        // A more robust solution would be needed if we wanted to allow clearing the password.
+        // Handle checkbox value, since unchecked boxes are not included in FormData
+        data.verify_ssl = document.getElementById('verify_ssl').checked;
+
         if (!data.password) {
             delete data.password;
         }
@@ -58,7 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
         statusDiv.textContent = message;
         statusDiv.className = type; // 'success' or 'error'
 
-        // Hide the message after 5 seconds
         setTimeout(() => {
             statusDiv.className = '';
         }, 5000);

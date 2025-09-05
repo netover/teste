@@ -9,7 +9,6 @@ import logging
 import configparser
 
 # --- Platform Specific Imports ---
-# Import winreg only on Windows to handle startup functionality
 if sys.platform == 'win32':
     import winreg
 
@@ -20,7 +19,6 @@ PORT = 63136
 BASE_URL = f"http://localhost:{PORT}"
 CONFIG_FILE = 'config/config.ini'
 APP_NAME = "HWA Dashboard"
-# Get the absolute path to the executable if running as a bundled app
 if getattr(sys, 'frozen', False):
     APP_PATH = sys.executable
 else:
@@ -35,6 +33,10 @@ def index():
 def config_page():
     return render_template('config.html')
 
+@app.route('/help')
+def help_page():
+    return render_template('help.html')
+
 @app.route('/static/<path:path>')
 def send_static(path):
     return send_from_directory('static', path)
@@ -45,8 +47,21 @@ def send_static(path):
 def get_job_streams():
     try:
         connector = HWAConnector(config_path=CONFIG_FILE)
-        job_streams = connector.query_job_streams()
-        return jsonify(job_streams)
+        all_jobs = connector.query_job_streams()
+
+        jobs_abend = [job for job in all_jobs if job.get('status', '').lower() == 'abend']
+        jobs_running = [job for job in all_jobs if job.get('status', '').lower() == 'exec']
+
+        response_data = {
+            "total_count": len(all_jobs),
+            "abend_count": len(jobs_abend),
+            "running_count": len(jobs_running),
+            "jobs_abend": jobs_abend,
+            "jobs_running": jobs_running,
+            "all_jobs": all_jobs
+        }
+        return jsonify(response_data)
+
     except FileNotFoundError as e:
         return jsonify({"error": str(e), "setup_required": True}), 500
     except (ValueError, requests.exceptions.RequestException) as e:
@@ -93,11 +108,9 @@ def shutdown():
 
 # --- System Tray & Server Logic ---
 def get_startup_key():
-    """Returns the Windows registry key for startup programs."""
     return winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Microsoft\Windows\CurrentVersion\Run', 0, winreg.KEY_ALL_ACCESS)
 
 def is_in_startup():
-    """Checks if the application is set to run at startup."""
     key = get_startup_key()
     try:
         winreg.QueryValueEx(key, APP_NAME)
@@ -108,14 +121,11 @@ def is_in_startup():
         winreg.CloseKey(key)
 
 def toggle_startup():
-    """Adds or removes the application from Windows startup."""
     key = get_startup_key()
     try:
         if is_in_startup():
-            logging.info("Removing app from startup.")
             winreg.DeleteValue(key, APP_NAME)
         else:
-            logging.info("Adding app to startup.")
             winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, f'"{APP_PATH}"')
     finally:
         winreg.CloseKey(key)
@@ -137,7 +147,6 @@ def setup_tray():
 
     menu_items = [item('Open Dashboard', open_dashboard)]
     if sys.platform == 'win32':
-        # Only add the startup option on Windows
         menu_items.append(item('Start with Windows', toggle_startup, checked=lambda item: is_in_startup()))
     menu_items.append(item('Exit', lambda: stop_app(tray_icon)))
 

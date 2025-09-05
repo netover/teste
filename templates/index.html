@@ -5,16 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HWA Neuromorphic Dashboard</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
     <header>
         <h1>HWA/TWS Workload Dashboard</h1>
         <nav>
-            <a href="/config" class="nav-link">Configuration</a>
+            <a href="/config" class="nav-link" title="Configuration"><i class="fas fa-cog"></i></a>
+            <a href="/help" class="nav-link" title="Help"><i class="fas fa-question-circle"></i></a>
+            <button id="shutdown-btn" class="nav-link" title="Shutdown Application"><i class="fas fa-power-off"></i></button>
         </nav>
     </header>
     <main id="dashboard-container">
-        <!-- Job streams will be loaded here by JavaScript -->
+        <!-- Summary Widgets will be loaded here -->
+        <section id="summary-widgets">
+            <div class="widget" id="widget-running">
+                <span class="widget-value">0</span>
+                <span class="widget-label">Running</span>
+            </div>
+            <div class="widget" id="widget-abend">
+                <span class="widget-value">0</span>
+                <span class="widget-label">Abend</span>
+            </div>
+            <div class="widget" id="widget-total">
+                <span class="widget-value">0</span>
+                <span class="widget-label">Total</span>
+            </div>
+        </section>
+
+        <!-- Job streams will be loaded here -->
         <div id="loading-indicator">
             <p>Loading data...</p>
         </div>
