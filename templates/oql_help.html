@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OQL Help - HWA Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        main {
+            padding: 20px;
+        }
+        h2, h3, h4 {
+            color: #0056b3;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        code {
+            background-color: #eee;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+        .example {
+            background-color: #f9f9f9;
+            border-left: 3px solid #0056b3;
+            padding: 15px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>OQL Help</h1>
+        <nav>
+            <a href="/" class="nav-link" title="Main Dashboard"><i class="fas fa-tachometer-alt"></i></a>
+            <a href="/config" class="nav-link" title="Configuration"><i class="fas fa-cog"></i></a>
+            <a href="/dashboard_editor" class="nav-link" title="Edit Dashboard"><i class="fas fa-edit"></i></a>
+            <a href="/help" class="nav-link" title="Help"><i class="fas fa-question-circle"></i></a>
+        </nav>
+    </header>
+    <main>
+        <h2>Using Orchestration Query Language (OQL)</h2>
+        <p>You can use the essential Orchestration Query Language (OQL) keywords and syntax to effectively write queries to monitor the HCL Workload Automation production plan environment. OQL applies to REST API V2, Orchestration CLI, and the Orchestration Monitor of the Dynamic Workload Console.</p>
+        <p>An OQL query begins with an expression, which is composed of different conditions, known as <code>queryTerms</code>. A <code>queryTerm</code> is the minimum condition of a OQL construction, for example <code>jobStreamName = 'test1'</code>.</p>
+        <p>QueryTerms include three main elements: a <strong>field</strong>, a <strong>comparison_operator</strong>, and a <strong>value</strong>. The fields and the values of the query are case-sensitive.</p>
+
+        <h3>Value Types</h3>
+        <ul>
+            <li><strong>Integers:</strong> Both positive and negative.</li>
+            <li><strong>Strings:</strong> In single quotation marks (e.g., <code>'my_string'</code>).</li>
+            <li><strong>Duration:</strong> Based on ISO 8601 standard (e.g., <code>'PT4H20S'</code> for 4 hours and 20 seconds).</li>
+            <li><strong>Instant:</strong> Based on ISO 8601 standard (e.g., <code>'2025-12-01T23:00:00.000Z'</code>).</li>
+            <li><strong>Identifier (ID):</strong> Based on Universally Unique Identifier (UUID) standard.</li>
+        </ul>
+
+        <h3>OQL Syntax Keywords and Comparison Operators</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Keyword/Operator</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>AND</td><td>Returns results that satisfy all conditions.</td></tr>
+                <tr><td>OR</td><td>Returns results that satisfy at least one condition.</td></tr>
+                <tr><td>( )</td><td>Opens and closes a priority expression.</td></tr>
+                <tr><td>[ ]</td><td>Opens and closes a list of values.</td></tr>
+                <tr><td>=</td><td>Equal to.</td></tr>
+                <tr><td>!=</td><td>Not equal to.</td></tr>
+                <tr><td>&lt;=</td><td>Less than or equal to.</td></tr>
+                <tr><td>&gt;=</td><td>Greater than or equal to.</td></tr>
+                <tr><td>&lt;</td><td>Less than.</td></tr>
+                <tr><td>&gt;</td><td>Greater than.</td></tr>
+                <tr><td>IN</td><td>Returns items included in the specified list.</td></tr>
+                <tr><td>NOT IN</td><td>Returns items not included in the specified list.</td></tr>
+                <tr><td>LIKE</td><td>Returns elements that match the specified pattern (@ for all characters, ? for a single character).</td></tr>
+                <tr><td>NOT LIKE</td><td>Returns elements that do not match the specified pattern.</td></tr>
+                <tr><td>ORDER BY</td><td>Orders the query results. Use with ASC (ascending) or DESC (descending).</td></tr>
+                <tr><td>,</td><td>Separates values inside a list.</td></tr>
+                <tr><td>.</td><td>Specifies a subfield of an item.</td></tr>
+                <tr><td>true / false / null</td><td>Represents boolean or null values.</td></tr>
+            </tbody>
+        </table>
+
+        <h3>OQL Fields</h3>
+        <p>The following sections provide lists of OQL fields for different object types. Note that fields are case-sensitive.</p>
+
+        <h4>Workstations</h4>
+        <!-- This would be a table of workstation fields -->
+        <p>Fields include: <code>activeFlags</code>, <code>activeStates</code>, <code>available</code>, <code>description</code>, <code>domainName</code>, <code>folder</code>, <code>id</code>, <code>jobmanUp</code>, <code>name</code>, <code>type</code>, etc.</p>
+
+        <h4>Job Streams</h4>
+        <!-- This would be a table of job stream fields -->
+        <p>Fields include: <code>aliasJobStreamName</code>, <code>commonStatus</code>, <code>compositeStatus.status</code>, <code>dependencies.dependencyStatus</code>, <code>folder</code>, <code>id</code>, <code>name</code>, <code>priority</code>, <code>schedTime</code>, <code>workstation</code>, etc.</p>
+
+        <h4>Jobs</h4>
+        <!-- This would be a table of job fields -->
+        <p>Fields include: <code>dependencies.dependencyStatus</code>, <code>folder</code>, <code>id</code>, <code>jobDefinition.key.name</code>, <code>jobruns.commonStatus</code>, <code>jobStreamName</code>, <code>name</code>, <code>priority</code>, <code>workstation</code>, etc.</p>
+
+        <h4>Resources</h4>
+        <!-- This would be a table of resource fields -->
+        <p>Fields include: <code>id</code>, <code>name</code>, <code>folder</code>, <code>workstation</code>, <code>quantity</code>, <code>quantityInUse</code>, <code>quantityAvailable</code>, <code>status</code>, etc.</p>
+
+        <h3>Examples</h3>
+
+        <h4>Workstation Example</h4>
+        <div class="example">
+            <p>Retrieve all workstations that are linked and running, OR are a fault-tolerant agent on a domain different from MASTERDM:</p>
+            <code>(activeStates IN ['LINKED'] AND jobmanUp = true) OR (type IN ['FTA'] AND domainName != 'MASTERDM')</code>
+        </div>
+
+        <h4>Job Stream Example</h4>
+        <div class="example">
+            <p>Retrieve all job streams in ERROR or BLOCKED status scheduled between Jan 1st and Feb 25th, 2025:</p>
+            <code>(commonStatus IN ['ERROR','BLOCKED']) AND (schedTime >= '2025-01-01T00:00:00.000Z' AND schedTime <= '2025-02-25T23:59:59.000Z')</code>
+        </div>
+
+        <h4>Job Example</h4>
+        <div class="example">
+            <p>Retrieve all critical jobs that are not in FAIL, ABEND, or HOLD status:</p>
+            <code>(jobruns.compositeStatus.status NOT IN ['FAIL','ABEND','HOLD']) AND jobOptions.critical = true</code>
+        </div>
+
+    </main>
+</body>
+</html>

@@ -51,6 +51,10 @@ def dashboard_editor_page():
 def help_page():
     return render_template('help.html')
 
+@app.route('/oql_help')
+def oql_help_page():
+    return render_template('oql_help.html')
+
 @app.route('/static/<path:path>')
 def send_static(path):
     return send_from_directory('static', path)
@@ -101,6 +105,36 @@ def get_dashboard_data():
         if "Authentication failed" in error_message:
              return jsonify({"error": "Authentication Failed. Please check your username and password in the configuration."}), 401
         return jsonify({"error": f"An unexpected error occurred: {error_message}"}), 500
+
+@app.route('/api/oql', methods=['GET'])
+def execute_oql():
+    """
+    API endpoint to execute a raw OQL query.
+    Expects a 'q' query parameter with the OQL string.
+    """
+    oql_query = request.args.get('q')
+    if not oql_query:
+        return jsonify({"error": "Missing 'q' parameter with OQL query."}), 400
+
+    try:
+        if not os.path.exists(CONFIG_FILE):
+            return jsonify({"error": "Configuration file not found. Please configure the connection."}), 404
+
+        client = HWAClient(config_path=CONFIG_FILE)
+        result = client.plan.execute_oql_query(oql_query)
+
+        return jsonify(result)
+
+    except ValueError as e:
+        # Catches HTTP errors from the HWA API, which are wrapped in ValueError
+        logging.error(f"OQL Query Error: {e}")
+        return jsonify({"error": f"The OQL query failed. Please check your syntax. (Details: {str(e)})"}), 400
+    except requests.exceptions.ConnectionError as e:
+        logging.error(f"Connection Error in OQL query: {e}")
+        return jsonify({"error": "Connection Error: Could not connect to the HWA host."}), 500
+    except Exception as e:
+        logging.error(f"Error in execute_oql: {e}")
+        return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
 
 @app.route('/api/plan/<plan_id>/job/<job_id>/action/cancel', methods=['PUT'])
 def cancel_job_in_plan(plan_id, job_id):

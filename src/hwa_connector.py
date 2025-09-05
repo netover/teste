@@ -106,6 +106,14 @@ class PlanService:
         logging.info(f"Sending 'cancel' action to job ID: {job_id}")
         return self.client._make_request('PUT', endpoint)
 
+    def execute_oql_query(self, oql_query, plan_id='current'):
+        """Executes a raw OQL query against the plan."""
+        endpoint = f"/plan/{plan_id}/query"
+        params = {'oql': oql_query}
+        logging.info(f"Executing OQL query: {oql_query}")
+        # This is a GET request, which is a common pattern for OQL queries
+        return self.client._make_request('GET', endpoint, params=params, headers={'How-Many': '1000'})
+
 
 class ModelService:
     """

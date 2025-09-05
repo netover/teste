@@ -53,27 +53,102 @@ document.addEventListener('DOMContentLoaded', () => {
                 showError(widgetConfig.message);
                 return;
             }
+
             const widgetEl = document.createElement('div');
-            widgetEl.className = `widget ${widgetConfig.color_class || ''}`;
             widgetEl.id = widgetConfig.id;
 
-            widgetEl.innerHTML = `
-                <i class="widget-icon ${widgetConfig.icon || 'fas fa-question-circle'}"></i>
-                <span class="widget-value">--</span>
-                <span class="widget-label">${widgetConfig.label}</span>
-            `;
+            if (widgetConfig.type === 'oql_table') {
+                widgetEl.className = 'widget-table'; // A different class for styling
+                widgetEl.innerHTML = `
+                    <h3 class="widget-title">${widgetConfig.title || 'OQL Table'}</h3>
+                    <div class="oql-table-container">
+                        <div class="loading-spinner"></div>
+                    </div>
+                `;
+                widgetsContainer.appendChild(widgetEl);
+                fetchAndRenderOQLWidget(widgetConfig); // Fetch data for this specific widget
+            } else { // Default to summary_count
+                widgetEl.className = `widget ${widgetConfig.color_class || ''}`;
+                widgetEl.innerHTML = `
+                    <i class="widget-icon ${widgetConfig.icon || 'fas fa-question-circle'}"></i>
+                    <span class="widget-value">--</span>
+                    <span class="widget-label">${widgetConfig.label}</span>
+                `;
 
-            if (widgetConfig.modal_data_key && widgetConfig.modal_title) {
-                widgetEl.addEventListener('click', (e) => {
-                    const itemList = apiData[widgetConfig.modal_data_key] || [];
-                    const renderFunc = itemRenderers[widgetConfig.modal_item_renderer];
-                    if (typeof renderFunc === 'function') {
-                        createListWindow(widgetConfig.modal_title, itemList, e.currentTarget, renderFunc);
-                    }
-                });
+                if (widgetConfig.modal_data_key && widgetConfig.modal_title) {
+                    widgetEl.addEventListener('click', (e) => {
+                        const itemList = apiData[widgetConfig.modal_data_key] || [];
+                        const renderFunc = itemRenderers[widgetConfig.modal_item_renderer];
+                        if (typeof renderFunc === 'function') {
+                            createListWindow(widgetConfig.modal_title, itemList, e.currentTarget, renderFunc);
+                        }
+                    });
+                }
+                widgetsContainer.appendChild(widgetEl);
             }
-            widgetsContainer.appendChild(widgetEl);
         });
+    };
+
+    const fetchAndRenderOQLWidget = async (widgetConfig) => {
+        const container = document.querySelector(`#${widgetConfig.id} .oql-table-container`);
+        if (!container) return;
+
+        try {
+            const query = encodeURIComponent(widgetConfig.oql_query);
+            const response = await fetch(`/api/oql?q=${query}`);
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to fetch OQL data.');
+            }
+            renderOQLTable(container, data);
+        } catch (error) {
+            container.innerHTML = `<p class="error-message">Error: ${error.message}</p>`;
+        }
+    };
+
+    const renderOQLTable = (container, data) => {
+        if (!Array.isArray(data) || data.length === 0) {
+            container.innerHTML = '<p>No results found for this query.</p>';
+            return;
+        }
+
+        const table = document.createElement('table');
+        table.className = 'oql-result-table';
+
+        // Create table header
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        const headers = Object.keys(data[0]);
+        headers.forEach(key => {
+            const th = document.createElement('th');
+            th.textContent = key;
+            headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        // Create table body
+        const tbody = document.createElement('tbody');
+        data.forEach(rowData => {
+            const row = document.createElement('tr');
+            headers.forEach(header => {
+                const td = document.createElement('td');
+                let value = rowData[header];
+                if (typeof value === 'object' && value !== null) {
+                    value = JSON.stringify(value, null, 2); // Pretty print nested objects
+                    td.innerHTML = `<pre><code>${value}</code></pre>`;
+                } else {
+                    td.textContent = value;
+                }
+                row.appendChild(td);
+            });
+            tbody.appendChild(row);
+        });
+        table.appendChild(tbody);
+
+        container.innerHTML = ''; // Clear loading spinner
+        container.appendChild(table);
     };
 
     /**

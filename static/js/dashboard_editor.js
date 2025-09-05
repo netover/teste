@@ -53,26 +53,48 @@ document.addEventListener('DOMContentLoaded', () => {
         const el = document.createElement('div');
         el.className = 'widget-editor-item';
         el.dataset.widgetId = widget.id;
+        el.dataset.widgetType = widget.type || 'summary_count';
+
+        let fieldsHTML = '';
+        if (el.dataset.widgetType === 'oql_table') {
+            fieldsHTML = `
+                <h4>OQL Table Widget</h4>
+                <div class="form-group">
+                    <label>Title:</label>
+                    <input type="text" name="title" value="${widget.title || ''}">
+                </div>
+                <div class="form-group">
+                    <label>OQL Query:</label>
+                    <textarea name="oql_query" rows="4">${widget.oql_query || ''}</textarea>
+                </div>
+            `;
+        } else { // Default to summary_count
+            fieldsHTML = `
+                <h4>Summary Count Widget</h4>
+                <div class="form-group">
+                    <label>Label:</label>
+                    <input type="text" name="label" value="${widget.label || ''}">
+                </div>
+                <div class="form-group">
+                    <label>Icon (Font Awesome):</label>
+                    <input type="text" name="icon" value="${widget.icon || ''}">
+                </div>
+                <div class="form-group">
+                    <label>Color Class:</label>
+                    <input type="text" name="color_class" value="${widget.color_class || ''}">
+                </div>
+                <div class="form-group">
+                    <label>API Metric:</label>
+                    <input type="text" name="api_metric" value="${widget.api_metric || ''}">
+                </div>
+            `;
+        }
 
         el.innerHTML = `
-            <div class="form-group">
-                <label>Label:</label>
-                <input type="text" name="label" value="${widget.label || ''}">
-            </div>
-            <div class="form-group">
-                <label>Icon (Font Awesome):</label>
-                <input type="text" name="icon" value="${widget.icon || ''}">
-            </div>
-            <div class="form-group">
-                <label>Color Class:</label>
-                <input type="text" name="color_class" value="${widget.color_class || ''}">
-            </div>
-            <div class="form-group">
-                <label>API Metric:</label>
-                <input type="text" name="api_metric" value="${widget.api_metric || ''}">
-            </div>
+            ${fieldsHTML}
             <button class="remove-widget-btn btn-danger"><i class="fas fa-trash"></i></button>
         `;
+
         el.querySelector('.remove-widget-btn').addEventListener('click', (e) => {
             e.preventDefault();
             if (confirm('Are you sure you want to remove this widget?')) {
@@ -100,16 +122,34 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const addWidget = () => {
+        const choice = prompt("Select widget type:\n1. Summary Count\n2. OQL Table", "1");
+        if (!choice) return; // User cancelled
+
         if (widgetListContainer.querySelector('p')) {
             widgetListContainer.innerHTML = '';
         }
-        const newWidgetData = {
-            id: `widget-${Date.now()}`,
-            label: "New Widget",
-            icon: "fas fa-plus-circle",
-            color_class: "color-gray",
-            api_metric: ""
-        };
+
+        let newWidgetData;
+        const newId = `widget-${Date.now()}`;
+
+        if (choice === '2') {
+            newWidgetData = {
+                id: newId,
+                type: 'oql_table',
+                title: 'New OQL Table',
+                oql_query: 'jobStreamName LIKE "@"'
+            };
+        } else { // Default to '1' or any other input
+            newWidgetData = {
+                id: newId,
+                type: 'summary_count',
+                label: "New Widget",
+                icon: "fas fa-plus-circle",
+                color_class: "color-gray",
+                api_metric: ""
+            };
+        }
+
         currentLayout.push(newWidgetData);
         const widgetEl = createWidgetEditorElement(newWidgetData);
         widgetListContainer.appendChild(widgetEl);
@@ -121,18 +161,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         widgetItems.forEach(item => {
             const widgetId = item.dataset.widgetId;
+            const widgetType = item.dataset.widgetType;
             const originalData = currentLayout.find(w => w.id === widgetId) || {};
-            newLayout.push({
-                id: widgetId,
-                label: item.querySelector('[name="label"]').value,
-                icon: item.querySelector('[name="icon"]').value,
-                color_class: item.querySelector('[name="color_class"]').value,
-                api_metric: item.querySelector('[name="api_metric"]').value,
-                type: originalData.type || 'summary_count',
-                modal_data_key: originalData.modal_data_key,
-                modal_title: originalData.modal_title,
-                modal_item_renderer: originalData.modal_item_renderer,
-            });
+
+            let widgetData = { id: widgetId, type: widgetType };
+
+            if (widgetType === 'oql_table') {
+                widgetData.title = item.querySelector('[name="title"]').value;
+                widgetData.oql_query = item.querySelector('[name="oql_query"]').value;
+            } else {
+                widgetData.label = item.querySelector('[name="label"]').value;
+                widgetData.icon = item.querySelector('[name="icon"]').value;
+                widgetData.color_class = item.querySelector('[name="color_class"]').value;
+                widgetData.api_metric = item.querySelector('[name="api_metric"]').value;
+                // Preserve modal data for summary widgets
+                widgetData.modal_data_key = originalData.modal_data_key;
+                widgetData.modal_title = originalData.modal_title;
+                widgetData.modal_item_renderer = originalData.modal_item_renderer;
+            }
+            newLayout.push(widgetData);
         });
 
         try {
