@@ -183,18 +183,6 @@ def save_config():
 # --- System Tray & Server Logic ---
 tray_icon = None
 
-@app.route('/shutdown', methods=['POST'])
-def shutdown():
-    global tray_icon
-    if tray_icon:
-        # Stop the tray icon event loop, which will cause the main thread to exit
-        tray_icon.stop()
-
-    # The shutdown function for Werkzeug is not reliable across different environments
-    # and not needed if stopping the tray icon successfully terminates the app.
-    # We can add a simple process kill for robustness if needed, but this is cleaner.
-    return jsonify({"success": True, "message": "Application is shutting down."})
-
 def get_startup_key():
     return winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Microsoft\Windows\CurrentVersion\Run', 0, winreg.KEY_ALL_ACCESS)
 
@@ -223,6 +211,11 @@ def run_flask():
 
 def open_dashboard():
     webbrowser.open(BASE_URL)
+
+@app.route('/shutdown', methods=['POST'])
+def shutdown():
+    stop_app()
+    return jsonify({"success": True, "message": "Application is shutting down."})
 
 def stop_app():
     """Stops the application by stopping the tray icon's event loop."""

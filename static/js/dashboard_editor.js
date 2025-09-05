@@ -27,16 +27,12 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const loadLayout = async () => {
-        console.log("Loading layout...");
         try {
             const response = await fetch('/api/dashboard_layout');
-            console.log("Layout response:", response.status);
             if (!response.ok) throw new Error('Could not load layout.');
             currentLayout = await response.json();
-            console.log("Layout data:", currentLayout);
             renderWidgetList();
         } catch (error) {
-            console.error("Error loading layout:", error);
             showMessage(`Error: ${error.message}`, 'error');
         }
     };

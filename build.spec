@@ -14,13 +14,14 @@ a = Analysis(
     # This is a crucial section. It tells PyInstaller to bundle non-Python files
     # into the executable. The format is a list of tuples: (source, destination).
     datas=[
-        ('templates', 'templates'),  # Bundle the entire 'templates' folder.
-        ('static', 'static'),        # Bundle the entire 'static' folder.
-        ('config/config.ini.template', 'config'), # Bundle the config template.
-        ('icon.png', '.')            # Bundle the application icon.
+        ('templates', 'templates'),
+        ('static', 'static'),
+        ('config/config.ini.template', 'config'),
+        ('dashboard_layout.json', '.'),
+        ('icon.png', '.')
     ],
 
-    hiddenimports=[],  # A list of modules that PyInstaller might not find automatically.
+    hiddenimports=['pystray._xorg', 'pystray._win32'],
     hookspath=[],
     runtime_hooks=[],
     excludes=[],
