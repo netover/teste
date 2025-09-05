@@ -3,120 +3,139 @@ document.addEventListener('DOMContentLoaded', () => {
     const messageArea = document.createElement('div');
     messageArea.id = 'message-area';
     messageArea.className = 'hidden';
-    editorContainer.appendChild(messageArea);
+    let widgetListContainer;
+    let sortableInstance;
 
     let currentLayout = [];
 
-    const loadLayout = async () => {
-        try {
-            // We fetch from a dynamic endpoint to ensure we get the latest version
-            const response = await fetch('/api/dashboard_layout');
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Could not load dashboard layout.');
-            }
-            currentLayout = await response.json();
-            renderEditor();
-        } catch (error) {
-            showMessage(`Error loading layout: ${error.message}`, 'error');
-        }
-    };
-
-    const renderEditor = () => {
-        // Clear previous content and rebuild
-        editorContainer.innerHTML = '';
-
-        const listContainer = document.createElement('div');
-        listContainer.id = 'widget-list';
-        editorContainer.appendChild(listContainer);
-
-        if (currentLayout.length > 0) {
-            currentLayout.forEach((widget, index) => {
-                const widgetEl = createWidgetEditorElement(widget, index);
-                listContainer.appendChild(widgetEl);
-            });
-        } else {
-            listContainer.innerHTML = '<p>No widgets in this layout. Add one to get started!</p>';
-        }
-
-        const actionsContainer = document.createElement('div');
-        actionsContainer.className = 'editor-actions';
-        actionsContainer.innerHTML = `
-            <button id="add-widget-btn" class="btn">Add Widget</button>
-            <button id="save-layout-btn" class="btn btn-primary">Save Layout</button>
+    const initEditor = () => {
+        editorContainer.innerHTML = `
+            <h2>Edit Your Dashboard Layout</h2>
+            <div id="widget-list" class="widget-editor-list"></div>
+            <div class="editor-actions">
+                <button id="add-widget-btn" class="btn">Add New Widget</button>
+                <button id="save-layout-btn" class="btn btn-primary">Save Layout</button>
+            </div>
         `;
-        editorContainer.appendChild(actionsContainer);
-        editorContainer.appendChild(messageArea); // Re-append message area
+        editorContainer.appendChild(messageArea);
+        widgetListContainer = document.getElementById('widget-list');
 
-        // Re-attach event listeners
         document.getElementById('add-widget-btn').addEventListener('click', addWidget);
         document.getElementById('save-layout-btn').addEventListener('click', saveLayout);
+
+        loadLayout();
     };
 
-    const createWidgetEditorElement = (widget, index) => {
+    const loadLayout = async () => {
+        console.log("Loading layout...");
+        try {
+            const response = await fetch('/api/dashboard_layout');
+            console.log("Layout response:", response.status);
+            if (!response.ok) throw new Error('Could not load layout.');
+            currentLayout = await response.json();
+            console.log("Layout data:", currentLayout);
+            renderWidgetList();
+        } catch (error) {
+            console.error("Error loading layout:", error);
+            showMessage(`Error: ${error.message}`, 'error');
+        }
+    };
+
+    const renderWidgetList = () => {
+        widgetListContainer.innerHTML = '';
+        if (currentLayout.length === 0) {
+            widgetListContainer.innerHTML = '<p>No widgets defined. Add one!</p>';
+        }
+        currentLayout.forEach((widget) => {
+            const widgetEl = createWidgetEditorElement(widget);
+            widgetListContainer.appendChild(widgetEl);
+        });
+        initSortable();
+    };
+
+    const createWidgetEditorElement = (widget) => {
         const el = document.createElement('div');
         el.className = 'widget-editor-item';
-        el.dataset.index = index;
+        el.dataset.widgetId = widget.id;
 
-        // Simplified editor for now
         el.innerHTML = `
             <div class="form-group">
                 <label>Label:</label>
-                <input type="text" name="label" value="${widget.label || ''}" placeholder="e.g., ABEND Jobs">
+                <input type="text" name="label" value="${widget.label || ''}">
             </div>
             <div class="form-group">
                 <label>Icon (Font Awesome):</label>
-                <input type="text" name="icon" value="${widget.icon || ''}" placeholder="e.g., fas fa-times-circle">
+                <input type="text" name="icon" value="${widget.icon || ''}">
             </div>
             <div class="form-group">
                 <label>Color Class:</label>
-                <input type="text" name="color_class" value="${widget.color_class || ''}" placeholder="e.g., color-red">
+                <input type="text" name="color_class" value="${widget.color_class || ''}">
             </div>
-             <div class="form-group">
-                <label>API Metric Name:</label>
-                <input type="text" name="api_metric" value="${widget.api_metric || ''}" placeholder="e.g., abend_count">
+            <div class="form-group">
+                <label>API Metric:</label>
+                <input type="text" name="api_metric" value="${widget.api_metric || ''}">
             </div>
-            <button class="remove-widget-btn btn-danger">Remove</button>
+            <button class="remove-widget-btn btn-danger"><i class="fas fa-trash"></i></button>
         `;
-        el.querySelector('.remove-widget-btn').addEventListener('click', () => removeWidget(index));
+        el.querySelector('.remove-widget-btn').addEventListener('click', (e) => {
+            e.preventDefault();
+            if (confirm('Are you sure you want to remove this widget?')) {
+                const widgetIdToRemove = el.dataset.widgetId;
+                currentLayout = currentLayout.filter(w => w.id !== widgetIdToRemove);
+                el.remove();
+            }
+        });
         return el;
     };
 
+    const initSortable = () => {
+        if (sortableInstance) {
+            sortableInstance.destroy();
+        }
+        sortableInstance = new Sortable(widgetListContainer, {
+            animation: 150,
+            handle: '.widget-editor-item',
+            ghostClass: 'widget-ghost',
+            onEnd: () => {
+                const newOrder = Array.from(widgetListContainer.children).map(item => item.dataset.widgetId);
+                currentLayout.sort((a, b) => newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
+            }
+        });
+    };
+
     const addWidget = () => {
-        const newWidget = {
+        if (widgetListContainer.querySelector('p')) {
+            widgetListContainer.innerHTML = '';
+        }
+        const newWidgetData = {
             id: `widget-${Date.now()}`,
             label: "New Widget",
-            icon: "fas fa-question-circle",
+            icon: "fas fa-plus-circle",
             color_class: "color-gray",
             api_metric: ""
         };
-        currentLayout.push(newWidget);
-        renderEditor(); // Re-render the editor
-    };
-
-    const removeWidget = (indexToRemove) => {
-        if (confirm('Are you sure you want to remove this widget?')) {
-            currentLayout.splice(indexToRemove, 1);
-            renderEditor();
-        }
+        currentLayout.push(newWidgetData);
+        const widgetEl = createWidgetEditorElement(newWidgetData);
+        widgetListContainer.appendChild(widgetEl);
     };
 
     const saveLayout = async () => {
-        const widgetItems = document.querySelectorAll('.widget-editor-item');
         const newLayout = [];
-        widgetItems.forEach((item, i) => {
-            const originalWidget = currentLayout[i] || {}; // Handle case where item was just added
-             newLayout.push({
-                id: originalWidget.id || `widget-${Date.now()}-${i}`,
+        const widgetItems = widgetListContainer.querySelectorAll('.widget-editor-item');
+
+        widgetItems.forEach(item => {
+            const widgetId = item.dataset.widgetId;
+            const originalData = currentLayout.find(w => w.id === widgetId) || {};
+            newLayout.push({
+                id: widgetId,
                 label: item.querySelector('[name="label"]').value,
                 icon: item.querySelector('[name="icon"]').value,
                 color_class: item.querySelector('[name="color_class"]').value,
                 api_metric: item.querySelector('[name="api_metric"]').value,
-                // Preserve non-editable properties
-                type: originalWidget.type || 'widget',
-                modal_data_key: originalWidget.modal_data_key,
-                modal_title: originalWidget.modal_title,
-                modal_item_renderer: originalWidget.modal_item_renderer,
+                type: originalData.type || 'summary_count',
+                modal_data_key: originalData.modal_data_key,
+                modal_title: originalData.modal_title,
+                modal_item_renderer: originalData.modal_item_renderer,
             });
         });
 
@@ -126,21 +145,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(newLayout)
             });
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.error || 'Failed to save layout.');
-
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Server failed to save layout.');
+            }
             showMessage('Layout saved successfully!', 'success');
-            currentLayout = newLayout; // Update state
+            currentLayout = newLayout;
         } catch (error) {
-            showMessage(`Error saving layout: ${error.message}`, 'error');
+            showMessage(`Error: ${error.message}`, 'error');
         }
     };
 
     const showMessage = (msg, type = 'info') => {
         messageArea.textContent = msg;
         messageArea.className = `message-area ${type}`;
-        setTimeout(() => { messageArea.className = 'hidden'; }, 5000);
+        setTimeout(() => { messageArea.className = 'hidden'; }, 3000);
     };
 
-    loadLayout();
+    initEditor();
 });

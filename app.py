@@ -43,13 +43,13 @@ def index():
 def config_page():
     return render_template('config.html')
 
-@app.route('/help')
-def help_page():
-    return render_template('help.html')
-
 @app.route('/dashboard_editor')
 def dashboard_editor_page():
     return render_template('dashboard_editor.html')
+
+@app.route('/help')
+def help_page():
+    return render_template('help.html')
 
 @app.route('/static/<path:path>')
 def send_static(path):
@@ -59,7 +59,6 @@ def send_static(path):
 # --- Backend API Routes ---
 @app.route('/api/dashboard_data')
 def get_dashboard_data():
-    print("--- GETTING DASHBOARD DATA ---")
     """
     Main API endpoint to fetch and process all data needed for the dashboard.
     """
@@ -179,16 +178,23 @@ def save_config():
         config.write(configfile)
     return jsonify({"success": "Configuration saved successfully."})
 
-@app.route('/shutdown', methods=['POST'])
-def shutdown():
-    shutdown_func = request.environ.get('werkzeug.server.shutdown')
-    if shutdown_func is None:
-        raise RuntimeError('Not running with the Werkzeug Server')
-    shutdown_func()
-    return 'Server shutting down...'
 
 
 # --- System Tray & Server Logic ---
+tray_icon = None
+
+@app.route('/shutdown', methods=['POST'])
+def shutdown():
+    global tray_icon
+    if tray_icon:
+        # Stop the tray icon event loop, which will cause the main thread to exit
+        tray_icon.stop()
+
+    # The shutdown function for Werkzeug is not reliable across different environments
+    # and not needed if stopping the tray icon successfully terminates the app.
+    # We can add a simple process kill for robustness if needed, but this is cleaner.
+    return jsonify({"success": True, "message": "Application is shutting down."})
+
 def get_startup_key():
     return winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Microsoft\Windows\CurrentVersion\Run', 0, winreg.KEY_ALL_ACCESS)
 
@@ -218,15 +224,14 @@ def run_flask():
 def open_dashboard():
     webbrowser.open(BASE_URL)
 
-def stop_app(tray_icon):
-    try:
-        requests.post(f"{BASE_URL}/shutdown")
-    except requests.ConnectionError:
-        # This can happen if the server is already down, which is fine.
-        pass
-    tray_icon.stop()
+def stop_app():
+    """Stops the application by stopping the tray icon's event loop."""
+    global tray_icon
+    if tray_icon:
+        tray_icon.stop()
 
 def setup_tray():
+    global tray_icon
     logging.info("Attempting to set up system tray icon.")
     try:
         from pystray import MenuItem as item, Icon as icon
@@ -251,11 +256,12 @@ def setup_tray():
     menu_items = [item('Open Dashboard', open_dashboard, default=True)]
     if sys.platform == 'win32':
         menu_items.append(item('Start with Windows', toggle_startup, checked=lambda item: is_in_startup()))
-    menu_items.append(item('Exit', lambda: stop_app(tray_icon)))
+    menu_items.append(item('Exit', stop_app))
 
     menu = tuple(menu_items)
 
     try:
+        # Assign to the global variable
         tray_icon = icon(APP_NAME, image, APP_NAME, menu)
         logging.info("System tray icon object created.")
     except Exception as e:

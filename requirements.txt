@@ -1,7 +1,0 @@
-flask
-requests
-pystray
-Pillow
-pytest
-pytest-playwright
-winreg; sys_platform == 'win32'
