@@ -1,0 +1,5 @@
+[tws]
+hostname = YOUR_TWS_HOSTNAME
+port = 31116
+username = YOUR_USERNAME
+password = YOUR_PASSWORD

@@ -1,0 +1,4 @@
+requests
+Flask
+pystray
+Pillow
