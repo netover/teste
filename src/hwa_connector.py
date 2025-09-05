@@ -2,17 +2,27 @@ import configparser
 import requests
 from requests.auth import HTTPBasicAuth
 import os
+import logging
 
 class HWAConnector:
     """
-    Handles connection and communication with the HCL Workload Automation (HWA) REST API.
+    Handles all communication with the HCL Workload Automation (HWA) REST API.
+    This class encapsulates methods for reading connection settings, authenticating,
+    and making API requests.
     """
     def __init__(self, config_path='config/config.ini'):
         """
-        Initializes the connector by reading configuration details.
+        Initializes the connector by reading configuration details from a .ini file.
+
+        Args:
+            config_path (str): The path to the configuration file.
+
+        Raises:
+            FileNotFoundError: If the configuration file cannot be found.
+            ValueError: If the config file is missing required sections or options.
         """
         if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Configuration file not found at '{config_path}'. Please create it from the template.")
+            raise FileNotFoundError(f"Configuration file not found at '{config_path}'. Please create it via the UI or from the template.")
 
         config = configparser.ConfigParser()
         config.read(config_path)
@@ -22,74 +32,74 @@ class HWAConnector:
             self.port = config.getint('tws', 'port')
             self.username = config.get('tws', 'username')
             self.password = config.get('tws', 'password')
+            # Read the SSL verification setting as a boolean. Fallback to False if not present.
+            self.verify_ssl = config.getboolean('tws', 'verify_ssl', fallback=False)
         except (configparser.NoSectionError, configparser.NoOptionError) as e:
-            raise ValueError(f"Configuration file is missing a required section or option: {e}")
+            raise ValueError(f"Configuration file '{config_path}' is missing a required section or option: {e}")
 
         self.base_url = f"https://{self.hostname}:{self.port}/twsd/v1"
         self.auth = HTTPBasicAuth(self.username, self.password)
+        logging.info(f"HWA Connector initialized. SSL verification is {'ENABLED' if self.verify_ssl else 'DISABLED'}.")
 
     def query_job_streams(self, filter_criteria=None):
         """
-        Queries for job streams in the current plan.
+        Queries for job streams in the current plan using the TWS API.
 
         Args:
-            filter_criteria (dict, optional): A dictionary for filtering job streams.
-                                              Defaults to None, which fetches all.
+            filter_criteria (dict, optional): A dictionary defining filters for the query.
 
         Returns:
-            list: A list of job stream objects from the API.
+            list: A list of job stream objects returned from the API.
 
         Raises:
-            requests.exceptions.RequestException: For connection or HTTP errors.
-            ValueError: For non-200 responses from the API.
+            requests.exceptions.RequestException: For network-level errors.
+            ValueError: For application-level errors (e.g., non-200 HTTP status code).
         """
         endpoint = f"{self.base_url}/plan/current/jobstream/query"
 
-        # Default payload to fetch all job streams if no filter is provided
         payload = { "columns": ["jobStreamName", "workstationName", "status", "startTime", "endTime"] }
         if filter_criteria:
             payload["filters"] = { "jobStreamInPlanFilter": filter_criteria }
 
         headers = {
             'Content-Type': 'application/json',
-            'How-Many': '500' # Request up to 500 records
+            'How-Many': '500'
         }
 
+        logging.info(f"Querying job streams from endpoint: {endpoint}")
         try:
-            # Note: We disable SSL verification for self-signed certs often used in TWS.
-            # This should be changed to a proper certificate path in a production environment.
-            response = requests.post(endpoint, json=payload, auth=self.auth, headers=headers, verify=False)
+            # The 'verify' parameter is now controlled by the 'verify_ssl' setting in config.ini
+            response = requests.post(endpoint, json=payload, auth=self.auth, headers=headers, verify=self.verify_ssl)
 
-            # Raise an exception for bad status codes (4xx or 5xx)
             response.raise_for_status()
 
+            logging.info(f"Successfully retrieved {len(response.json())} job streams.")
             return response.json()
 
         except requests.exceptions.HTTPError as http_err:
-            # Add more context to HTTP errors
             error_message = f"HTTP error occurred: {http_err}. Response body: {response.text}"
+            logging.error(error_message)
             raise ValueError(error_message)
         except requests.exceptions.RequestException as req_err:
-            # Catch other request exceptions (e.g., connection error)
+            logging.error(f"Request failed: {req_err}")
             raise requests.exceptions.RequestException(f"Request failed: {req_err}")
 
-# Example usage for standalone testing
 if __name__ == '__main__':
-    print("Attempting to connect to HWA using 'config/config.ini'...")
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    print("--- HWA Connector Standalone Test ---")
 
-    # A real config file needs to be created for this to work
     if not os.path.exists('config/config.ini'):
-        print("\nERROR: 'config/config.ini' not found.")
-        print("Please copy 'config/config.ini.template' to 'config/config.ini' and fill in your details.")
+        print("\n[TEST INFO] 'config/config.ini' not found. This is expected if not configured.")
+        print("Please use the application's UI to configure or copy 'config.ini.template' and fill in your details.")
     else:
         try:
+            print("\n[TEST INFO] 'config/config.ini' found. Attempting to connect...")
             connector = HWAConnector()
-            print("Connection object created successfully.")
-            print("Querying for all job streams...")
 
+            print("\n[TEST INFO] Querying for all job streams...")
             job_streams = connector.query_job_streams()
 
-            print(f"\nSuccessfully retrieved {len(job_streams)} job streams.")
+            print(f"\n[SUCCESS] Retrieved {len(job_streams)} job streams.")
 
             if job_streams:
                 print("\n--- First 5 Job Streams ---")
@@ -100,4 +110,5 @@ if __name__ == '__main__':
                 print("---------------------------")
 
         except (FileNotFoundError, ValueError, requests.exceptions.RequestException) as e:
-            print(f"\nAn error occurred: {e}")
+            print(f"\n[ERROR] An error occurred during the test: {e}")
+    print("\n--- Test Complete ---")

@@ -110,3 +110,106 @@ header h1 {
 .hidden {
     display: none;
 }
+
+/* --- Config Page Styles --- */
+#config-container {
+    max-width: 600px;
+    margin: 20px auto;
+    padding: 20px;
+    background: rgba(22, 27, 34, 0.7);
+    backdrop-filter: blur(10px);
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    text-align: left;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #8b949e;
+    font-weight: bold;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 10px;
+    background-color: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    color: #c9d1d9;
+    font-size: 1em;
+    box-sizing: border-box;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: #58a6ff;
+    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.3);
+}
+
+.form-group small {
+    display: block;
+    margin-top: 5px;
+    font-size: 0.8em;
+    color: #8b949e;
+}
+
+button[type="submit"] {
+    background-color: #238636;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-size: 1em;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+button[type="submit"]:hover {
+    background-color: #2ea043;
+}
+
+#save-status {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 6px;
+    text-align: center;
+    visibility: hidden;
+}
+
+#save-status.success {
+    background-color: rgba(40, 167, 69, 0.2); color: #3fb950;
+    visibility: visible;
+}
+
+#save-status.error {
+     background-color: rgba(220, 53, 69, 0.2); color: #f85149;
+     visibility: visible;
+}
+
+.nav-link {
+    display: block;
+    text-align: center;
+    margin-top: 20px;
+    color: #58a6ff;
+    text-decoration: none;
+}
+
+.nav-link:hover {
+    text-decoration: underline;
+}
+
+header {
+    position: relative;
+    padding-bottom: 20px; /* Add padding to avoid overlap */
+}
+
+header nav {
+    position: absolute;
+    top: 25px;
+    right: 25px;
+}
