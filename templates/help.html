@@ -9,38 +9,30 @@
 </head>
 <body>
     <header>
-        <h1>Help & Information</h1>
+        <h1>Help</h1>
+        <nav>
+            <a href="/" class="nav-link" title="Main Dashboard"><i class="fas fa-tachometer-alt"></i></a>
+            <a href="/config" class="nav-link" title="Configuration"><i class="fas fa-cog"></i></a>
+            <a href="/dashboard_editor" class="nav-link" title="Edit Dashboard"><i class="fas fa-edit"></i></a>
+        </nav>
     </header>
-    <main id="help-container" style="max-width: 800px; margin: 20px auto; text-align: left;">
-        <section class="help-section">
-            <h2>About the Dashboard</h2>
-            <p>This application is a lightweight, web-based dashboard for monitoring an HCL Workload Automation (HWA) or Tivoli Workload Scheduler (TWS) environment via its REST API.</p>
-            <p>It runs as a background process with a system tray icon, and the dashboard is accessed through a local web URL.</p>
-        </section>
-
-        <section class="help-section">
-            <h2>Configuration</h2>
-            <p>To connect to your HWA/TWS instance, you must provide your connection details.</p>
-            <ol>
-                <li>Click the <strong>Cog (<i class="fas fa-cog"></i>)</strong> icon in the top right of the dashboard.</li>
-                <li>Fill in your HWA/TWS <strong>Hostname</strong>, <strong>Port</strong>, <strong>Username</strong>, and <strong>Password</strong>.</li>
-                <li>The <strong>Verify SSL</strong> checkbox controls whether the application should validate the SSL certificate of the HWA server. Uncheck this for environments with self-signed certificates.</li>
-                <li>Click <strong>Save Configuration</strong>. The settings are saved internally and will be used for all future connections.</li>
-            </ol>
-        </section>
-
-        <section class="help-section">
-            <h2>Features</h2>
-            <ul>
-                <li><strong>Real-time Monitoring:</strong> The dashboard automatically refreshes to show the latest job stream statuses.</li>
-                <li><strong>System Tray Icon:</strong> The application runs in the background. You can open the dashboard or exit the application from the tray icon menu.</li>
-                <li><strong>Start with Windows:</strong> (If on Windows) You can set the application to start automatically when you log in via the tray icon menu.</li>
-            </ul>
-        </section>
-
-        <a href="/" class="nav-link" style="margin-top: 30px;">
-            <i class="fas fa-arrow-left"></i> Back to Dashboard
-        </a>
+    <main>
+        <h2>HWA Neuromorphic Dashboard Help</h2>
+        <p>This dashboard provides a real-time overview of your HCL Workload Automation (HWA) or Tivoli Workload Scheduler (TWS) environment.</p>
+        <h3>Features</h3>
+        <ul>
+            <li><strong>Dynamic Widgets:</strong> The main dashboard displays key metrics. You can click on these widgets to see more details.</li>
+            <li><strong>Job and Workstation Grids:</strong> View all your job streams and workstations at a glance.</li>
+            <li><strong>Configuration:</strong> Use the configuration page to set up the connection to your HWA/TWS environment.</li>
+            <li><strong>Movable Windows:</strong> All pop-up windows can be dragged around the screen.</li>
+        </ul>
+        <h3>Troubleshooting</h3>
+        <p>If you are having trouble connecting, please check the following:</p>
+        <ul>
+            <li>The hostname and port are correct.</li>
+            <li>The username and password are correct.</li>
+            <li>If your HWA/TWS environment uses a self-signed SSL certificate, make sure to uncheck the "Verify SSL Certificate" box in the configuration.</li>
+        </ul>
     </main>
 </body>
 </html>

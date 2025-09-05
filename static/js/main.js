@@ -1,29 +1,106 @@
 /**
  * Main JavaScript file for the HWA Dashboard.
  * Handles API data fetching, UI rendering, and all interactivity
- * for the main dashboard page, including widgets and modal popups.
+ * for the main dashboard page, including dynamic, draggable widgets.
  */
 document.addEventListener('DOMContentLoaded', () => {
-    // DOM Element References
-    const grid = document.getElementById('job-streams-grid');
+    // --- DOM Element References ---
+    const widgetsContainer = document.getElementById('summary-widgets');
+    const jobStreamsGrid = document.getElementById('job-streams-grid');
+    const workstationsGrid = document.getElementById('workstations-grid');
     const loadingIndicator = document.getElementById('loading-indicator');
     const errorDisplay = document.getElementById('error-display');
 
-    // A global-like variable to store the latest data from the API.
-    // This allows different functions (like modal creation) to access the data
-    // without needing to re-fetch it.
-    let apiData = {};
+    // --- Global State ---
+    // `dashboardLayout` is injected from the backend via a script tag in index.html
+    let apiData = {}; // Caches the latest data from the backend.
+    let sortedLayout = []; // Will hold the layout sorted by user preference.
+
+    // --- Render Functions for Modal Lists ---
+    const itemRenderers = {
+        renderJobItem: job => `<li><strong>${job.jobStreamName || 'N/A'}</strong> on ${job.workstationName || 'N/A'} (${job.status})</li>`,
+        renderWorkstationItem: ws => `<li><strong>${ws.name}</strong> (${ws.type}) - Status: <span class="status ${getStatusClass(ws.status)}">${ws.status}</span></li>`
+    };
 
     /**
-     * Fetches the latest job stream data from the backend API.
+     * Sorts the layout configuration based on a saved order in localStorage.
+     * If no order is saved, it uses the default order from the JSON file.
+     */
+    const sortLayout = () => {
+        const savedOrder = JSON.parse(localStorage.getItem('dashboardWidgetOrder'));
+        const layoutMap = new Map(dashboardLayout.map(item => [item.id, item]));
+
+        if (savedOrder && savedOrder.length === dashboardLayout.length) {
+            // Use saved order, filtering out any IDs that no longer exist in the config
+            sortedLayout = savedOrder
+                .map(id => layoutMap.get(id))
+                .filter(Boolean); // Filter out undefined in case config changed
+        } else {
+            // Use default order
+            sortedLayout = [...dashboardLayout];
+        }
+    };
+
+    /**
+     * Renders the entire widget section based on the sorted layout.
+     */
+    const renderWidgets = () => {
+        if (!widgetsContainer) return;
+        widgetsContainer.innerHTML = '';
+
+        sortedLayout.forEach(widgetConfig => {
+            if (widgetConfig.type === 'error') {
+                showError(widgetConfig.message);
+                return;
+            }
+            const widgetEl = document.createElement('div');
+            widgetEl.className = `widget ${widgetConfig.color_class || ''}`;
+            widgetEl.id = widgetConfig.id;
+
+            widgetEl.innerHTML = `
+                <i class="widget-icon ${widgetConfig.icon || 'fas fa-question-circle'}"></i>
+                <span class="widget-value">--</span>
+                <span class="widget-label">${widgetConfig.label}</span>
+            `;
+
+            if (widgetConfig.modal_data_key && widgetConfig.modal_title) {
+                widgetEl.addEventListener('click', (e) => {
+                    const itemList = apiData[widgetConfig.modal_data_key] || [];
+                    const renderFunc = itemRenderers[widgetConfig.modal_item_renderer];
+                    if (typeof renderFunc === 'function') {
+                        createListWindow(widgetConfig.modal_title, itemList, e.currentTarget, renderFunc);
+                    }
+                });
+            }
+            widgetsContainer.appendChild(widgetEl);
+        });
+    };
+
+    /**
+     * Initializes SortableJS to make widgets draggable and saves the new order.
+     */
+    const initDragAndDrop = () => {
+        if (!widgetsContainer || typeof Sortable === 'undefined') return;
+
+        new Sortable(widgetsContainer, {
+            animation: 150,
+            ghostClass: 'widget-ghost',
+            onEnd: () => {
+                const newOrder = [...widgetsContainer.children].map(widget => widget.id);
+                localStorage.setItem('dashboardWidgetOrder', JSON.stringify(newOrder));
+            }
+        });
+    };
+
+    /**
+     * Fetches the latest dashboard data from the backend API.
      */
     const fetchData = async () => {
-        // Show loading indicator only on the initial load.
-        if (!grid.hasChildNodes()) loadingIndicator.classList.remove('hidden');
+        if (!jobStreamsGrid.hasChildNodes()) loadingIndicator.classList.remove('hidden');
         errorDisplay.classList.add('hidden');
 
         try {
-            const response = await fetch('/api/jobstreams');
+            const response = await fetch('/api/dashboard_data');
             const data = await response.json();
             loadingIndicator.classList.add('hidden');
             if (data.error) throw new Error(data.error);
@@ -35,65 +112,76 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     /**
-     * Renders the data received from the API into the dashboard UI.
-     * @param {object} data - The structured data object from the backend.
+     * Populates the UI with data from the API.
      */
     const renderData = (data) => {
-        apiData = data; // Store the fresh data.
+        apiData = data;
 
-        // Update summary widgets with the latest counts.
-        document.querySelector('#widget-running .widget-value').textContent = data.running_count || 0;
-        document.querySelector('#widget-abend .widget-value').textContent = data.abend_count || 0;
-        document.querySelector('#widget-total .widget-value').textContent = data.total_count || 0;
+        sortedLayout.forEach(widgetConfig => {
+            if (widgetConfig.api_metric) {
+                const widgetValueEl = document.querySelector(`#${widgetConfig.id} .widget-value`);
+                if (widgetValueEl) {
+                    widgetValueEl.textContent = data[widgetConfig.api_metric] ?? 0;
+                }
+            }
+        });
 
-        // Render the main grid of all job streams.
-        grid.innerHTML = '';
-        const jobStreams = data.all_jobs || [];
-        if (jobStreams.length === 0) {
-            grid.innerHTML = '<p>No job streams found.</p>';
-            return;
-        }
+        renderJobStreams(data.job_streams || []);
+        renderWorkstations(data.workstations || []);
+    };
+
+    const renderJobStreams = (jobStreams) => {
+        console.log('Rendering job streams:', jobStreams);
+        jobStreamsGrid.innerHTML = '';
+        if (jobStreams.length === 0) { jobStreamsGrid.innerHTML = '<p>No job streams found.</p>'; return; }
         jobStreams.forEach(js => {
+            // Each job stream card now gets a click listener to open a detail view
             const card = document.createElement('div');
             card.className = 'job-stream-card';
+            card.dataset.jobId = js.id; // Store job ID for actions
+            card.dataset.planId = 'current'; // Assuming 'current' plan for now
+
             const statusClass = getStatusClass(js.status);
-            card.innerHTML = `<h3>${js.jobStreamName || 'N/A'}</h3><p><strong>Workstation:</strong> ${js.workstationName || 'N/A'}</p><p><strong>Status:</strong> <span class="status ${statusClass}">${js.status || 'N/A'}</span></p><p><strong>Start Time:</strong> ${js.startTime ? new Date(js.startTime).toLocaleString() : 'N/A'}</p>`;
-            grid.appendChild(card);
+            card.innerHTML = `
+                <h3>${js.jobStreamName || 'N/A'}</h3>
+                <p><strong>Workstation:</strong> ${js.workstationName || 'N/A'}</p>
+                <p><strong>Status:</strong> <span class="status ${statusClass}">${js.status || 'N/A'}</span></p>
+                <p><strong>Start Time:</strong> ${js.startTime ? new Date(js.startTime).toLocaleString() : 'N/A'}</p>
+            `;
+            card.addEventListener('click', () => createJobDetailWindow(js));
+            jobStreamsGrid.appendChild(card);
         });
     };
 
-    /**
-     * Determines the appropriate CSS class for a given job status.
-     * @param {string} status - The job status string from the API.
-     * @returns {string} The CSS class name.
-     */
+    const renderWorkstations = (workstations) => {
+        workstationsGrid.innerHTML = '';
+        if (workstations.length === 0) { workstationsGrid.innerHTML = '<p>No workstations found.</p>'; return; }
+        workstations.forEach(ws => {
+            const card = document.createElement('div');
+            card.className = 'workstation-card';
+            const statusClass = getStatusClass(ws.status);
+            card.innerHTML = `<h3>${ws.name || 'N/A'}</h3><p><strong>Type:</strong> ${ws.type || 'N/A'}</p><p><strong>Status:</strong> <span class="status ${statusClass}">${ws.status || 'N/A'}</span></p>`;
+            workstationsGrid.appendChild(card);
+        });
+    };
+
     const getStatusClass = (status) => {
         if (!status) return 'status-unknown';
         const s = status.toLowerCase();
-        if (s.includes('succ')) return 'status-success';
+        if (s.includes('succ') || s.includes('link')) return 'status-success';
         if (s.includes('error') || s.includes('abend')) return 'status-error';
         if (s.includes('exec')) return 'status-running';
         if (s.includes('pend')) return 'status-pending';
         return 'status-unknown';
     };
 
-    /**
-     * Displays an error message in the designated error display area.
-     * @param {string} message - The error message to display.
-     */
     const showError = (message) => {
-        errorDisplay.textContent = `Error: ${message}`;
+        errorDisplay.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${message}`;
         errorDisplay.classList.remove('hidden');
     };
 
-    /**
-     * Creates and displays a draggable modal window with a list of jobs.
-     * @param {string} title - The title for the modal window.
-     * @param {Array} jobList - The list of job objects to display.
-     * @param {HTMLElement} originElement - The element that was clicked to open the modal, used for the animation origin.
-     */
-    const createJobListWindow = (title, jobList, originElement) => {
-        // 1. Create Modal DOM Elements
+    const createListWindow = (title, itemList, originElement, renderItem) => {
+        // This function remains the same as before.
         const overlay = document.createElement('div');
         overlay.className = 'modal-overlay';
         const content = document.createElement('div');
@@ -107,22 +195,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const body = document.createElement('div');
         body.className = 'modal-body';
         let listHtml = '<ul>';
-        if (jobList && jobList.length > 0) {
-            jobList.forEach(job => {
-                listHtml += `<li><strong>${job.jobStreamName}</strong> on ${job.workstationName}</li>`;
-            });
+        if (itemList && itemList.length > 0) {
+            itemList.forEach(item => { listHtml += renderItem(item); });
         } else {
-            listHtml += '<li>No jobs to display for this status.</li>';
+            listHtml += `<li>No items to display in this category.</li>`;
         }
         listHtml += '</ul>';
         body.innerHTML = listHtml;
-        content.appendChild(closeBtn);
-        content.appendChild(titleEl);
-        content.appendChild(body);
+        content.append(closeBtn, titleEl, body);
         overlay.appendChild(content);
         document.body.appendChild(overlay);
 
-        // 2. Animate Modal Opening
         const originRect = originElement.getBoundingClientRect();
         content.style.left = `${originRect.left + (originRect.width / 2)}px`;
         content.style.top = `${originRect.top + (originRect.height / 2)}px`;
@@ -134,28 +217,21 @@ document.addEventListener('DOMContentLoaded', () => {
             content.classList.add('animated-open');
         });
 
-        // 3. Define Close Logic
         const closeModal = () => {
             content.classList.remove('animated-open');
-            setTimeout(() => {
-                if (document.body.contains(overlay)) document.body.removeChild(overlay);
-            }, 300);
+            setTimeout(() => { if (document.body.contains(overlay)) document.body.removeChild(overlay); }, 300);
         };
         closeBtn.addEventListener('click', closeModal);
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) closeModal();
-        });
+        overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
 
-        // 4. Dragging Logic
-        let isDragging = false;
-        let offset = { x: 0, y: 0 };
+        let isDragging = false, offset = { x: 0, y: 0 };
         titleEl.style.cursor = 'grab';
-        titleEl.addEventListener('mousedown', (e) => {
+        titleEl.addEventListener('mousedown', e => {
             isDragging = true;
             offset = { x: e.clientX - content.offsetLeft, y: e.clientY - content.offsetTop };
             titleEl.style.cursor = 'grabbing';
         });
-        const onMouseMove = (e) => {
+        const onMouseMove = e => {
             if (!isDragging) return;
             content.style.transform = 'none';
             content.style.left = `${e.clientX - offset.x}px`;
@@ -168,37 +244,101 @@ document.addEventListener('DOMContentLoaded', () => {
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
 
-        // Cleanup dragging event listeners when the modal is closed to prevent memory leaks.
-        const originalCloseModal = closeModal;
-        closeBtn.onclick = () => {
+        closeBtn.addEventListener('click', () => {
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
-            originalCloseModal();
-        };
+        }, { once: true });
     };
 
-    // --- Initial Setup and Event Listeners ---
+    const createJobDetailWindow = (jobStream) => {
+        const { jobStreamName, workstationName, status, startTime, id: jobId } = jobStream;
+        const planId = 'current'; // Hardcoded for now
 
-    // Add event listeners for the summary widgets to open modals.
-    document.getElementById('widget-running').addEventListener('click', (e) => createJobListWindow('Running Jobs', apiData.jobs_running, e.currentTarget));
-    document.getElementById('widget-abend').addEventListener('click', (e) => createJobListWindow('ABEND Jobs', apiData.jobs_abend, e.currentTarget));
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        const content = document.createElement('div');
+        content.className = 'modal-content';
 
-    // Add event listener for the application shutdown button.
-    const shutdownBtn = document.getElementById('shutdown-btn');
-    if (shutdownBtn) {
-        shutdownBtn.addEventListener('click', async () => {
-            if (confirm('Are you sure you want to shut down the application?')) {
-                try {
-                    await fetch('/shutdown', { method: 'POST' });
-                    document.body.innerHTML = '<header><h1>Application Shut Down</h1></header><main><p>You can now close this browser tab.</p></main>';
-                } catch (error) {
-                    document.body.innerHTML = '<header><h1>Application Shut Down</h1></header><main><p>You can now close this browser tab.</p></main>';
-                }
+        content.innerHTML = `
+            <button class="modal-close-btn">&times;</button>
+            <h2 class="modal-title">Job Stream Details</h2>
+            <div class="modal-body">
+                <p><strong>Name:</strong> ${jobStreamName}</p>
+                <p><strong>Workstation:</strong> ${workstationName}</p>
+                <p><strong>Status:</strong> <span class="status ${getStatusClass(status)}">${status}</span></p>
+                <p><strong>Start Time:</strong> ${startTime ? new Date(startTime).toLocaleString() : 'N/A'}</p>
+                <p><strong>Job ID:</strong> ${jobId}</p>
+                <p><strong>Plan ID:</strong> ${planId}</p>
+            </div>
+            <div class="modal-footer">
+                <button id="cancel-job-btn" class="btn-danger">Cancel Job</button>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+        overlay.appendChild(content);
+
+        // Animation and closing logic
+        requestAnimationFrame(() => {
+            overlay.classList.add('visible');
+            content.classList.add('animated-open');
+        });
+
+        const closeModal = () => {
+            content.classList.remove('animated-open');
+            setTimeout(() => { if (document.body.contains(overlay)) document.body.removeChild(overlay); }, 300);
+        };
+
+        content.querySelector('.modal-close-btn').addEventListener('click', closeModal);
+        overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+
+        // Action button logic
+        content.querySelector('#cancel-job-btn').addEventListener('click', () => {
+            if (confirm(`Are you sure you want to cancel job "${jobStreamName}"?`)) {
+                cancelJob(planId, jobId, closeModal);
             }
         });
-    }
+    };
 
-    // Initial data fetch when the page loads, then set an interval to refresh it.
-    fetchData();
-    setInterval(fetchData, 30000);
+    const cancelJob = async (planId, jobId, callbackOnSuccess) => {
+        showError(''); // Clear previous errors
+        try {
+            const response = await fetch(`/api/plan/${planId}/job/${jobId}/action/cancel`, {
+                method: 'PUT',
+            });
+            const result = await response.json();
+            if (!response.ok || result.error) {
+                throw new Error(result.error || `Failed to send cancel command. Status: ${response.status}`);
+            }
+            alert(result.message || 'Successfully sent cancel command.');
+            if (callbackOnSuccess) callbackOnSuccess();
+            fetchData(); // Refresh data to reflect the change
+        } catch (error) {
+            console.error('Cancellation failed:', error);
+            showError(`Error cancelling job: ${error.message}`);
+        }
+    };
+
+    const setupShutdown = () => {
+        const shutdownBtn = document.getElementById('shutdown-btn');
+        if (shutdownBtn) {
+            shutdownBtn.addEventListener('click', async () => {
+                if (confirm('Are you sure you want to shut down the application?')) {
+                    try { await fetch('/shutdown', { method: 'POST' }); }
+                    finally { document.body.innerHTML = '<header><h1>Application Shut Down</h1></header><main><p>You can now close this browser tab.</p></main>'; }
+                }
+            });
+        }
+    };
+
+    // Expose fetchData to the window for testing purposes
+    window.fetchData = fetchData;
+
+    // --- Application Initialization ---
+    sortLayout();           // 1. Determine the correct widget order.
+    renderWidgets();        // 2. Build the widget UI.
+    initDragAndDrop();      // 3. Make the widgets draggable.
+    fetchData();            // 4. Fetch data to populate the UI.
+    setInterval(fetchData, 30000); // Refresh data periodically.
+    setupShutdown();        // Set up the shutdown button.
 });

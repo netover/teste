@@ -4,18 +4,17 @@ from requests.auth import HTTPBasicAuth
 import os
 import logging
 
-class HWAConnector:
+# --- Base Client and Services Structure ---
+
+class HWAClient:
     """
-    Handles all communication with the HCL Workload Automation (HWA) REST API.
-    This class encapsulates methods for reading connection settings, authenticating,
-    and making API requests.
+    Main client for interacting with the HCL Workload Automation (HWA) REST API.
+    This client handles the connection and authentication details and provides
+    access to different API services.
     """
     def __init__(self, config_path='config/config.ini'):
-        """
-        Initializes the connector by reading configuration details from a .ini file.
-        """
         if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Configuration file not found at '{config_path}'. Please create it via the UI or from the template.")
+            raise FileNotFoundError(f"Configuration file not found at '{config_path}'.")
 
         config = configparser.ConfigParser()
         config.read(config_path)
@@ -27,85 +26,107 @@ class HWAConnector:
             self.password = config.get('tws', 'password')
             self.verify_ssl = config.getboolean('tws', 'verify_ssl', fallback=False)
         except (configparser.NoSectionError, configparser.NoOptionError) as e:
-            raise ValueError(f"Configuration file '{config_path}' is missing a required section or option: {e}")
+            raise ValueError(f"Config file is missing a required section/option: {e}")
 
         self.base_url = f"https://{self.hostname}:{self.port}/twsd/v1"
         self.auth = HTTPBasicAuth(self.username, self.password)
-        logging.info(f"HWA Connector initialized. SSL verification is {'ENABLED' if self.verify_ssl else 'DISABLED'}.")
+        logging.info(f"HWA Client initialized. SSL verification: {'ENABLED' if self.verify_ssl else 'DISABLED'}.")
+
+        # Initialize service handlers
+        self.plan = PlanService(self)
+        self.model = ModelService(self)
 
     def _make_request(self, method, endpoint, **kwargs):
-        """Internal helper for making requests."""
+        """Internal helper for making all API requests."""
         url = f"{self.base_url}{endpoint}"
-        logging.info(f"Making {method} request to: {url}")
+        logging.info(f"Request: {method} {url}")
         try:
             response = requests.request(method, url, auth=self.auth, verify=self.verify_ssl, **kwargs)
             response.raise_for_status()
-            # Return JSON if content exists, otherwise an empty dict for actions that return no body.
             return response.json() if response.content else {}
         except requests.exceptions.HTTPError as http_err:
-            error_message = f"HTTP error occurred: {http_err}. Response body: {http_err.response.text}"
+            error_message = f"HTTP error: {http_err}. Response: {http_err.response.text}"
             logging.error(error_message)
             raise ValueError(error_message)
         except requests.exceptions.RequestException as req_err:
             logging.error(f"Request failed: {req_err}")
             raise requests.exceptions.RequestException(f"Request failed: {req_err}")
 
+
+class PlanService:
+    """
+    Service for interacting with objects in the HWA Plan.
+    """
+    def __init__(self, client: HWAClient):
+        self.client = client
+
     def query_job_streams(self, filter_criteria=None):
         """Queries for job streams in the current plan."""
-        payload = {"columns": ["jobStreamName", "workstationName", "status", "startTime", "endTime"]}
+        endpoint = "/plan/current/jobstream/query"
+        payload = {"columns": ["jobStreamName", "workstationName", "status", "startTime", "endTime", "jobInPlanOnCriticalPathFilter"]}
         if filter_criteria:
             payload["filters"] = {"jobStreamInPlanFilter": filter_criteria}
-        return self._make_request('POST', '/plan/current/jobstream/query', json=payload, headers={'How-Many': '500'})
+        return self.client._make_request('POST', endpoint, json=payload, headers={'How-Many': '500'})
 
-    def get_workstation_status(self, workstation_name):
-        """Gets the status of a specific workstation from the model."""
-        payload = {"filters": {"workstationFilter": {"workstationName": workstation_name}}}
-        workstations = self._make_request('POST', '/model/workstation/query', json=payload)
-        return workstations[0] if workstations else None
+    def get_job_log(self, job_id, plan_id='current'):
+        """Retrieves the log for a specific job in the plan."""
+        endpoint = f"/plan/{plan_id}/job/{job_id}/joblog"
+        return self.client._make_request('GET', endpoint)
+
+    def get_critical_jobs(self, plan_id='current', filter_criteria=None):
+        """Queries for critical jobs in the specified plan."""
+        endpoint = f"/plan/{plan_id}/criticaljob/query"
+        payload = {"columns": ["jobInPlanOnCriticalNetwork"]}
+        if filter_criteria:
+            payload["filters"] = {"criticalJobInPlanFilter": filter_criteria}
+        return self.client._make_request('POST', endpoint, json=payload)
 
     def cancel_job(self, job_id, plan_id='current'):
-        """
-        Sends a 'cancel' command to a specific job in the plan.
-        Note: The job_id required here is the internal plan ID (e.g., a UUID),
-        not the simple job name.
-        """
-        # This endpoint structure is based on observed patterns and may need validation.
-        endpoint = f"/plan/{plan_id}/job/{job_id}/action"
-        payload = {"action": "cancel"}
+        """Sends a 'cancel' command to a specific job in the plan."""
+        endpoint = f"/plan/{plan_id}/job/{job_id}/action/cancel"
         logging.info(f"Sending 'cancel' action to job ID: {job_id}")
-        return self._make_request('POST', endpoint, json=payload)
+        return self.client._make_request('PUT', endpoint)
 
-    # --- Placeholder for future methods ---
-    def submit_jobstream(self, jobstream_definition):
-        """Submits a new jobstream to the plan."""
-        logging.warning("submit_jobstream is not yet implemented.")
-        pass
+
+class ModelService:
+    """
+    Service for interacting with objects in the HWA Database (Model).
+    """
+    def __init__(self, client: HWAClient):
+        self.client = client
+
+    def query_workstations(self, filter_criteria=None):
+        """Queries for workstations defined in the model."""
+        endpoint = "/model/workstation/query"
+        payload = {"columns": ["workstationName", "status"]}
+        if filter_criteria:
+            payload["filters"] = {"workstationFilter": filter_criteria}
+        return self.client._make_request('POST', endpoint, json=payload)
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-    print("--- HWA Connector Standalone Test ---")
+    print("--- HWA Client SDK Standalone Test ---")
 
     if not os.path.exists('config/config.ini'):
-        print("\n[TEST INFO] 'config/config.ini' not found. This is expected if not configured.")
+        print("\n[TEST INFO] 'config/config.ini' not found.")
     else:
         try:
-            print("\n[TEST INFO] 'config/config.ini' found. Attempting to connect...")
-            connector = HWAConnector()
+            print("\n[TEST INFO] Initializing HWAClient...")
+            client = HWAClient()
 
-            print("\n[TEST INFO] Example: Querying for workstation 'CPU_MASTER'...")
-            ws_status = connector.get_workstation_status("CPU_MASTER")
-            if ws_status:
-                print(f"[SUCCESS] Retrieved status for CPU_MASTER: {ws_status.get('status')}")
+            print("\n[TEST INFO] Example: Querying for all workstations via ModelService...")
+            workstations = client.model.query_workstations()
+            if workstations:
+                print(f"[SUCCESS] Retrieved {len(workstations)} workstations.")
+                online_workstations = [w for w in workstations if w.get('status', '').lower() == 'link']
+                print(f"    -> {len(online_workstations)} are online ('LINK').")
             else:
-                print("[INFO] Workstation 'CPU_MASTER' not found.")
+                print("[INFO] No workstations found.")
 
-            print("\n[TEST INFO] Example: Demonstrating call to cancel job (will likely fail without a real job ID)...")
-            try:
-                # This call is expected to fail with a 404 or similar error without a valid, real-time job ID.
-                connector.cancel_job("dummy-job-id-12345")
-            except ValueError as e:
-                print(f"[INFO] Call to cancel_job failed as expected: {e}")
+            print("\n[TEST INFO] Example: Querying for critical jobs via PlanService...")
+            critical_jobs = client.plan.get_critical_jobs()
+            print(f"[SUCCESS] Retrieved {len(critical_jobs)} critical jobs.")
 
         except (FileNotFoundError, ValueError, requests.exceptions.RequestException) as e:
             print(f"\n[ERROR] An error occurred during the test: {e}")
