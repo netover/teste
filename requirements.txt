@@ -10,3 +10,4 @@ pytest-playwright
 winreg; sys_platform == 'win32'
 cryptography
 httpx
+slowapi

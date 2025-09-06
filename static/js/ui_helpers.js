@@ -1,8 +1,15 @@
 /**
+ * A callback function for modal setup.
+ * @param {HTMLElement} modalContent - The main content element of the modal.
+ * @param {() => void} closeModal - A function to programmatically close the modal.
+ */
+// type ModalSetupCallback = (modalContent: HTMLElement, closeModal: () => void) => void;
+
+/**
  * Creates and displays a generic, draggable modal window.
  * @param {string} title - The title to display in the modal header.
  * @param {string} bodyHTML - The HTML content to display in the modal body.
- * @param {function(HTMLElement): void} [setupCallback] - An optional callback function that receives the modal content element for further setup (e.g., adding event listeners).
+ * @param {Function} [setupCallback] - An optional callback function that receives the modal content element for further setup.
  */
 function createModal(title, bodyHTML, setupCallback) {
     const overlay = document.createElement('div');
@@ -46,15 +53,16 @@ function createModal(title, bodyHTML, setupCallback) {
     };
 
     closeBtn.addEventListener('click', closeModal);
-    overlay.addEventListener('click', e => {
+    overlay.addEventListener('click', (e) => {
         if (e.target === overlay) closeModal();
     });
 
     // --- Dragging Logic ---
-    let isDragging = false, offset = { x: 0, y: 0 };
+    let isDragging = false;
+    let offset = { x: 0, y: 0 };
     titleEl.style.cursor = 'grab';
 
-    const onMouseDown = e => {
+    const onMouseDown = (e) => {
         isDragging = true;
         offset = { x: e.clientX - content.offsetLeft, y: e.clientY - content.offsetTop };
         titleEl.style.cursor = 'grabbing';
@@ -62,11 +70,10 @@ function createModal(title, bodyHTML, setupCallback) {
         document.addEventListener('mouseup', onMouseUp);
     };
 
-    const onMouseMove = e => {
+    const onMouseMove = (e) => {
         if (!isDragging) return;
-        // Allows dragging even if mouse moves fast
         e.preventDefault();
-        content.style.transform = 'none'; // Disable the initial transform
+        content.style.transform = 'none';
         content.style.left = `${e.clientX - offset.x}px`;
         content.style.top = `${e.clientY - offset.y}px`;
     };
@@ -80,7 +87,6 @@ function createModal(title, bodyHTML, setupCallback) {
 
     titleEl.addEventListener('mousedown', onMouseDown);
 
-    // Allow the caller to add custom logic (like event listeners) to the modal
     if (typeof setupCallback === 'function') {
         setupCallback(content, closeModal);
     }

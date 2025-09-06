@@ -1,6 +1,8 @@
 import configparser
 import requests
 from requests.auth import HTTPBasicAuth
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import os
 import logging
 
@@ -48,8 +50,18 @@ class HWAClient:
             raise ValueError(f"Config file is missing a required section/option: {e}")
 
         self.base_url = f"https://{self.hostname}:{self.port}/twsd/v1"
-        self.auth = HTTPBasicAuth(self.username, self.password)
-        logging.info(f"HWA Client initialized. SSL verification: {'ENABLED' if self.verify_ssl else 'DISABLED'}.")
+
+        # Setup session with connection pooling and retry logic
+        self.session = requests.Session()
+        self.session.auth = HTTPBasicAuth(self.username, self.password)
+        self.session.verify = self.verify_ssl
+
+        retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[502, 503, 504])
+        adapter = HTTPAdapter(max_retries=retries)
+        self.session.mount('http://', adapter)
+        self.session.mount('https://', adapter)
+
+        logging.info(f"HWA Client initialized. SSL verification: {'ENABLED' if self.verify_ssl else 'DISABLED'}. Retries: {retries.total}")
 
         # Initialize service handlers
         self.plan = PlanService(self)
@@ -60,7 +72,7 @@ class HWAClient:
         url = f"{self.base_url}{endpoint}"
         logging.info(f"Request: {method} {url}")
         try:
-            response = requests.request(method, url, auth=self.auth, verify=self.verify_ssl, **kwargs)
+            response = self.session.request(method, url, **kwargs)
             response.raise_for_status()
             return response.json() if response.content else {}
         except requests.exceptions.HTTPError as http_err:

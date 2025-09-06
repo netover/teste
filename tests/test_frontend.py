@@ -4,21 +4,21 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 import pytest
 from playwright.sync_api import Page, expect
-from app import app
+from main import main as run_main_app
 import time
 import json
 import multiprocessing
-import uvicorn
+import os
 
-# Fixture to run the FastAPI app in a background process
+# Fixture to run the main application in a background process
 def run_app():
-    uvicorn.run(app, host="0.0.0.0", port=63136, log_level="info")
+    run_main_app()
 
 @pytest.fixture(scope="session", autouse=True)
 def live_server():
     server = multiprocessing.Process(target=run_app)
     server.start()
-    time.sleep(2)
+    time.sleep(3) # Give server more time to start
     yield
     server.terminate()
     server.join()

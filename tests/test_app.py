@@ -4,14 +4,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 import pytest
 from fastapi.testclient import TestClient
-from app import app
+from src.api_server import app
 import json
 from unittest.mock import patch, MagicMock
 
 # Use FastAPI's TestClient
 client = TestClient(app)
 
-@patch('app.HWAClient')
+@patch('src.api_server.HWAClient')
 def test_dashboard_data_endpoint(mock_hwa_client):
     """
     Tests the /api/dashboard_data endpoint, mocking the HWAClient.

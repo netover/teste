@@ -1,0 +1,19 @@
+{
+  "name": "hwa-dashboard",
+  "version": "1.0.0",
+  "description": "A dashboard for HCL Workload Automation.",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:ts": "tsc"
+  },
+  "keywords": [
+    "hwa",
+    "tws",
+    "dashboard"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^5.0.4"
+  }
+}

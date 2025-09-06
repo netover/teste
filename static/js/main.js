@@ -16,6 +16,31 @@ document.addEventListener('DOMContentLoaded', () => {
     let apiData = {}; // Caches the latest data from the backend.
     let sortedLayout = []; // Will hold the layout sorted by user preference.
 
+    const chartManager = {
+        charts: new Map(),
+        createChart(widgetId, config) {
+            this.destroyChart(widgetId); // Ensure no old chart lingers
+            const canvas = document.querySelector(`#${widgetId} canvas`);
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                const newChart = new Chart(ctx, config);
+                this.charts.set(widgetId, newChart);
+            }
+        },
+        destroyChart(widgetId) {
+            if (this.charts.has(widgetId)) {
+                this.charts.get(widgetId).destroy();
+                this.charts.delete(widgetId);
+                console.log(`Chart ${widgetId} destroyed.`);
+            }
+        },
+        destroyAllCharts() {
+            for (const widgetId of this.charts.keys()) {
+                this.destroyChart(widgetId);
+            }
+        }
+    };
+
     // --- Render Functions for Modal Lists ---
     const itemRenderers = {
         renderJobItem: job => `<li><strong>${job.jobStreamName || 'N/A'}</strong> on ${job.workstationName || 'N/A'} (${job.status})</li>`,
@@ -46,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     const renderWidgets = () => {
         if (!widgetsContainer) return;
+        chartManager.destroyAllCharts(); // Destroy old charts before re-rendering
         widgetsContainer.innerHTML = '';
 
         sortedLayout.forEach(widgetConfig => {
@@ -198,11 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const values = data.map(item => item[data_column]);
 
         container.innerHTML = ''; // Clear spinner
-        const canvas = document.createElement('canvas');
-        container.appendChild(canvas);
-        const ctx = canvas.getContext('2d');
-
-        new Chart(ctx, {
+        const chartConfig = {
             type: chart_type || 'bar',
             data: {
                 labels: labels,
@@ -237,7 +259,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
-        });
+        };
+
+        const canvas = document.createElement('canvas');
+        container.appendChild(canvas);
+        chartManager.createChart(config.id, chartConfig);
     };
 
     /**
@@ -268,18 +294,28 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             loadingIndicator.classList.add('hidden');
             if (data.error) throw new Error(data.error);
-            renderData(data);
+            return renderData(data); // Return the boolean from renderData
         } catch (error) {
             loadingIndicator.classList.add('hidden');
             showError(error.message);
+            return false; // Assume no changes on error
         }
     };
 
     /**
      * Populates the UI with data from the API.
+     * @returns {boolean} - True if the data has changed, false otherwise.
      */
     const renderData = (data) => {
+        const hasChanged = JSON.stringify(apiData) !== JSON.stringify(data);
         apiData = data;
+
+        if (!hasChanged) {
+            console.log("No data changes detected.");
+            return false;
+        }
+
+        console.log("Data has changed, re-rendering UI components.");
 
         sortedLayout.forEach(widgetConfig => {
             if (widgetConfig.api_metric) {
@@ -422,11 +458,45 @@ document.addEventListener('DOMContentLoaded', () => {
     // Expose fetchData to the window for testing purposes
     window.fetchData = fetchData;
 
+    const adaptivePoller = {
+        minInterval: 15000, // 15 seconds
+        maxInterval: 180000, // 3 minutes
+        currentInterval: 30000, // Start at 30 seconds
+        timerId: null,
+
+        start() {
+            this.stop(); // Ensure no multiple timers running
+            const loop = async () => {
+                const hasChanges = await fetchData();
+                this.adapt(hasChanges);
+                this.timerId = setTimeout(loop, this.currentInterval);
+            };
+            loop(); // Start the first iteration immediately
+        },
+
+        stop() {
+            if (this.timerId) {
+                clearTimeout(this.timerId);
+                this.timerId = null;
+            }
+        },
+
+        adapt(hasChanges) {
+            if (hasChanges) {
+                // If there were changes, poll more frequently
+                this.currentInterval = this.minInterval;
+            } else {
+                // If no changes, gradually slow down polling
+                this.currentInterval = Math.min(this.currentInterval * 1.2, this.maxInterval);
+            }
+            console.log(`Polling interval adapted to ${this.currentInterval / 1000}s`);
+        }
+    };
+
     // --- Application Initialization ---
     sortLayout();           // 1. Determine the correct widget order.
     renderWidgets();        // 2. Build the widget UI.
     initDragAndDrop();      // 3. Make the widgets draggable.
-    fetchData();            // 4. Fetch data to populate the UI.
-    setInterval(fetchData, 30000); // Refresh data periodically.
+    adaptivePoller.start(); // 4. Start the adaptive polling.
     setupShutdown();        // Set up the shutdown button.
 });
