@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}HWA Dashboard{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+    <header>
+        <h1>{% block header_title %}{% endblock %}</h1>
+        <nav>
+            <a href="/" class="nav-link" title="Main Dashboard"><i class="fas fa-tachometer-alt"></i></a>
+            <a href="/config" class="nav-link" title="Configuration"><i class="fas fa-cog"></i></a>
+            <a href="/dashboard_editor" class="nav-link" title="Edit Dashboard"><i class="fas fa-edit"></i></a>
+            <a href="/oql_help" class="nav-link" title="OQL Help"><i class="fas fa-book-open"></i></a>
+            <a href="/help" class="nav-link" title="Help"><i class="fas fa-question-circle"></i></a>
+            <button id="shutdown-btn" class="nav-link" title="Shutdown Application"><i class="fas fa-power-off"></i></button>
+        </nav>
+    </header>
+
+    <main id="{% block main_id %}container{% endblock %}">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="/static/js/ui_helpers.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

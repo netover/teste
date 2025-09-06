@@ -3,18 +3,16 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import pytest
+from fastapi.testclient import TestClient
 from app import app
 import json
 from unittest.mock import patch, MagicMock
 
-@pytest.fixture
-def client():
-    app.config['TESTING'] = True
-    with app.test_client() as client:
-        yield client
+# Use FastAPI's TestClient
+client = TestClient(app)
 
 @patch('app.HWAClient')
-def test_dashboard_data_endpoint(mock_hwa_client, client):
+def test_dashboard_data_endpoint(mock_hwa_client):
     """
     Tests the /api/dashboard_data endpoint, mocking the HWAClient.
     """
@@ -40,7 +38,7 @@ def test_dashboard_data_endpoint(mock_hwa_client, client):
     os.remove('config/config.ini')
 
     assert response.status_code == 200
-    data = json.loads(response.data)
+    data = response.json()
 
     # Assertions
     assert data['abend_count'] == 1
@@ -50,7 +48,7 @@ def test_dashboard_data_endpoint(mock_hwa_client, client):
     assert len(data['jobs_abend']) == 1
     assert data['jobs_abend'][0]['jobStreamName'] == 'JOB1'
 
-def test_get_layout_endpoint(client):
+def test_get_layout_endpoint():
     """
     Tests the /api/dashboard_layout GET endpoint.
     """
@@ -61,12 +59,12 @@ def test_get_layout_endpoint(client):
 
     response = client.get('/api/dashboard_layout')
     assert response.status_code == 200
-    data = json.loads(response.data)
+    data = response.json()
     assert data[0]['id'] == 'test_widget'
 
     os.remove('dashboard_layout.json')
 
-def test_save_layout_endpoint(client):
+def test_save_layout_endpoint():
     """
     Tests the /api/dashboard_layout POST endpoint.
     """

@@ -67,6 +67,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
                 widgetsContainer.appendChild(widgetEl);
                 fetchAndRenderOQLWidget(widgetConfig); // Fetch data for this specific widget
+            } else if (widgetConfig.type === 'oql_chart') {
+                widgetEl.className = 'widget-chart';
+                widgetEl.innerHTML = `
+                    <h3 class="widget-title">${widgetConfig.title || 'OQL Chart'}</h3>
+                    <div class="oql-chart-container">
+                        <canvas></canvas>
+                    </div>
+                `;
+                widgetsContainer.appendChild(widgetEl);
+                fetchAndRenderOQLChart(widgetConfig);
             } else { // Default to summary_count
                 widgetEl.className = `widget ${widgetConfig.color_class || ''}`;
                 widgetEl.innerHTML = `
@@ -76,11 +86,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
 
                 if (widgetConfig.modal_data_key && widgetConfig.modal_title) {
-                    widgetEl.addEventListener('click', (e) => {
+                    widgetEl.addEventListener('click', () => {
                         const itemList = apiData[widgetConfig.modal_data_key] || [];
                         const renderFunc = itemRenderers[widgetConfig.modal_item_renderer];
                         if (typeof renderFunc === 'function') {
-                            createListWindow(widgetConfig.modal_title, itemList, e.currentTarget, renderFunc);
+                            createListWindow(widgetConfig.modal_title, itemList, renderFunc);
                         }
                     });
                 }
@@ -94,8 +104,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!container) return;
 
         try {
+            const source = widgetConfig.oql_source || 'plan';
             const query = encodeURIComponent(widgetConfig.oql_query);
-            const response = await fetch(`/api/oql?q=${query}`);
+            const response = await fetch(`/api/oql?q=${query}&source=${source}`);
             const data = await response.json();
 
             if (!response.ok) {
@@ -149,6 +160,84 @@ document.addEventListener('DOMContentLoaded', () => {
 
         container.innerHTML = ''; // Clear loading spinner
         container.appendChild(table);
+    };
+
+    const fetchAndRenderOQLChart = async (widgetConfig) => {
+        const container = document.querySelector(`#${widgetConfig.id} .oql-chart-container`);
+        if (!container) return;
+        container.innerHTML = '<div class="loading-spinner"></div>';
+
+        try {
+            const source = widgetConfig.oql_source || 'plan';
+            const query = encodeURIComponent(widgetConfig.oql_query);
+            const response = await fetch(`/api/oql?q=${query}&source=${source}`);
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.detail || 'Failed to fetch OQL data.');
+            }
+            renderOQLChart(container, data, widgetConfig);
+        } catch (error) {
+            container.innerHTML = `<p class="error-message">Error: ${error.message}</p>`;
+        }
+    };
+
+    const renderOQLChart = (container, data, config) => {
+        if (!Array.isArray(data) || data.length === 0) {
+            container.innerHTML = '<p>No data for this chart.</p>';
+            return;
+        }
+
+        const { chart_type, label_column, data_column } = config;
+        if (!label_column || !data_column) {
+            container.innerHTML = '<p class="error-message">Error: Label and Data columns must be configured for this chart.</p>';
+            return;
+        }
+
+        const labels = data.map(item => item[label_column]);
+        const values = data.map(item => item[data_column]);
+
+        container.innerHTML = ''; // Clear spinner
+        const canvas = document.createElement('canvas');
+        container.appendChild(canvas);
+        const ctx = canvas.getContext('2d');
+
+        new Chart(ctx, {
+            type: chart_type || 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: config.title || 'OQL Chart',
+                    data: values,
+                    backgroundColor: [ // Add some default colors
+                        'rgba(255, 99, 132, 0.5)',
+                        'rgba(54, 162, 235, 0.5)',
+                        'rgba(255, 206, 86, 0.5)',
+                        'rgba(75, 192, 192, 0.5)',
+                        'rgba(153, 102, 255, 0.5)',
+                        'rgba(255, 159, 64, 0.5)'
+                    ],
+                    borderColor: [
+                        'rgba(255, 99, 132, 1)',
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 206, 86, 1)',
+                        'rgba(75, 192, 192, 1)',
+                        'rgba(153, 102, 255, 1)',
+                        'rgba(255, 159, 64, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: chart_type === 'pie' || chart_type === 'doughnut', // Only show legend for pie/doughnut
+                    }
+                }
+            }
+        });
     };
 
     /**
@@ -255,20 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
         errorDisplay.classList.remove('hidden');
     };
 
-    const createListWindow = (title, itemList, originElement, renderItem) => {
-        // This function remains the same as before.
-        const overlay = document.createElement('div');
-        overlay.className = 'modal-overlay';
-        const content = document.createElement('div');
-        content.className = 'modal-content';
-        const titleEl = document.createElement('h2');
-        titleEl.className = 'modal-title';
-        titleEl.textContent = title;
-        const closeBtn = document.createElement('button');
-        closeBtn.className = 'modal-close-btn';
-        closeBtn.innerHTML = '&times;';
-        const body = document.createElement('div');
-        body.className = 'modal-body';
+    const createListWindow = (title, itemList, renderItem) => {
         let listHtml = '<ul>';
         if (itemList && itemList.length > 0) {
             itemList.forEach(item => { listHtml += renderItem(item); });
@@ -276,121 +352,58 @@ document.addEventListener('DOMContentLoaded', () => {
             listHtml += `<li>No items to display in this category.</li>`;
         }
         listHtml += '</ul>';
-        body.innerHTML = listHtml;
-        content.append(closeBtn, titleEl, body);
-        overlay.appendChild(content);
-        document.body.appendChild(overlay);
 
-        const originRect = originElement.getBoundingClientRect();
-        content.style.left = `${originRect.left + (originRect.width / 2)}px`;
-        content.style.top = `${originRect.top + (originRect.height / 2)}px`;
-        content.style.transform = 'scale(0)';
-        content.style.opacity = '0';
-
-        requestAnimationFrame(() => {
-            overlay.classList.add('visible');
-            content.classList.add('animated-open');
-        });
-
-        const closeModal = () => {
-            content.classList.remove('animated-open');
-            setTimeout(() => { if (document.body.contains(overlay)) document.body.removeChild(overlay); }, 300);
-        };
-        closeBtn.addEventListener('click', closeModal);
-        overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
-
-        let isDragging = false, offset = { x: 0, y: 0 };
-        titleEl.style.cursor = 'grab';
-        titleEl.addEventListener('mousedown', e => {
-            isDragging = true;
-            offset = { x: e.clientX - content.offsetLeft, y: e.clientY - content.offsetTop };
-            titleEl.style.cursor = 'grabbing';
-        });
-        const onMouseMove = e => {
-            if (!isDragging) return;
-            content.style.transform = 'none';
-            content.style.left = `${e.clientX - offset.x}px`;
-            content.style.top = `${e.clientY - offset.y}px`;
-        };
-        const onMouseUp = () => {
-            isDragging = false;
-            titleEl.style.cursor = 'grab';
-        };
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-
-        closeBtn.addEventListener('click', () => {
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
-        }, { once: true });
+        // Use the generic modal creator from ui_helpers.js
+        createModal(title, listHtml);
     };
 
     const createJobDetailWindow = (jobStream) => {
         const { jobStreamName, workstationName, status, startTime, id: jobId } = jobStream;
-        const planId = 'current'; // Hardcoded for now
+        const planId = 'current';
 
-        const overlay = document.createElement('div');
-        overlay.className = 'modal-overlay';
-        const content = document.createElement('div');
-        content.className = 'modal-content';
-
-        content.innerHTML = `
-            <button class="modal-close-btn">&times;</button>
-            <h2 class="modal-title">Job Stream Details</h2>
-            <div class="modal-body">
-                <p><strong>Name:</strong> ${jobStreamName}</p>
-                <p><strong>Workstation:</strong> ${workstationName}</p>
-                <p><strong>Status:</strong> <span class="status ${getStatusClass(status)}">${status}</span></p>
-                <p><strong>Start Time:</strong> ${startTime ? new Date(startTime).toLocaleString() : 'N/A'}</p>
-                <p><strong>Job ID:</strong> ${jobId}</p>
-                <p><strong>Plan ID:</strong> ${planId}</p>
-            </div>
+        const bodyHTML = `
+            <p><strong>Name:</strong> ${jobStreamName}</p>
+            <p><strong>Workstation:</strong> ${workstationName}</p>
+            <p><strong>Status:</strong> <span class="status ${getStatusClass(status)}">${status}</span></p>
+            <p><strong>Start Time:</strong> ${startTime ? new Date(startTime).toLocaleString() : 'N/A'}</p>
+            <p><strong>Job ID:</strong> ${jobId}</p>
+            <p><strong>Plan ID:</strong> ${planId}</p>
             <div class="modal-footer">
-                <button id="cancel-job-btn" class="btn-danger">Cancel Job</button>
+                <button class="btn btn-secondary" data-action="rerun">Rerun</button>
+                <button class="btn btn-warning" data-action="hold">Hold</button>
+                <button class="btn btn-info" data-action="release">Release</button>
+                <button class="btn btn-danger" data-action="cancel">Cancel</button>
             </div>
         `;
 
-        document.body.appendChild(overlay);
-        overlay.appendChild(content);
-
-        // Animation and closing logic
-        requestAnimationFrame(() => {
-            overlay.classList.add('visible');
-            content.classList.add('animated-open');
-        });
-
-        const closeModal = () => {
-            content.classList.remove('animated-open');
-            setTimeout(() => { if (document.body.contains(overlay)) document.body.removeChild(overlay); }, 300);
-        };
-
-        content.querySelector('.modal-close-btn').addEventListener('click', closeModal);
-        overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
-
-        // Action button logic
-        content.querySelector('#cancel-job-btn').addEventListener('click', () => {
-            if (confirm(`Are you sure you want to cancel job "${jobStreamName}"?`)) {
-                cancelJob(planId, jobId, closeModal);
-            }
+        createModal(`Job Details: ${jobStreamName}`, bodyHTML, (modal, closeModal) => {
+            modal.querySelectorAll('.modal-footer button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const action = btn.dataset.action;
+                    if (confirm(`Are you sure you want to ${action} job "${jobStreamName}"?`)) {
+                        performJobAction(planId, jobId, action, closeModal);
+                    }
+                });
+            });
         });
     };
 
-    const cancelJob = async (planId, jobId, callbackOnSuccess) => {
+    const performJobAction = async (planId, jobId, action, callbackOnSuccess) => {
         showError(''); // Clear previous errors
         try {
-            const response = await fetch(`/api/plan/${planId}/job/${jobId}/action/cancel`, {
+            const response = await fetch(`/api/plan/${planId}/job/${jobId}/action/${action}`, {
                 method: 'PUT',
             });
             const result = await response.json();
-            if (!response.ok || result.error) {
-                throw new Error(result.error || `Failed to send cancel command. Status: ${response.status}`);
+            if (!response.ok) {
+                throw new Error(result.detail || `Failed to send ${action} command.`);
             }
-            alert(result.message || 'Successfully sent cancel command.');
+            alert(result.message || `Successfully sent ${action} command.`);
             if (callbackOnSuccess) callbackOnSuccess();
             fetchData(); // Refresh data to reflect the change
         } catch (error) {
-            console.error('Cancellation failed:', error);
-            showError(`Error cancelling job: ${error.message}`);
+            console.error(`${action} action failed:`, error);
+            showError(`Error performing ${action} action: ${error.message}`);
         }
     };
 

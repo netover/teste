@@ -8,11 +8,11 @@ from app import app
 import time
 import json
 import multiprocessing
+import uvicorn
 
-# Fixture to run the Flask app in a background process
+# Fixture to run the FastAPI app in a background process
 def run_app():
-    test_app = app
-    app.run(host="0.0.0.0", port=63136, debug=False)
+    uvicorn.run(app, host="0.0.0.0", port=63136, log_level="info")
 
 @pytest.fixture(scope="session", autouse=True)
 def live_server():
@@ -86,7 +86,7 @@ def test_cancel_job_flow(page: Page):
     expect(modal).to_contain_text("CRITICAL_JOB")
 
     page.once("dialog", lambda dialog: dialog.accept())
-    modal.locator("#cancel-job-btn").click()
+    modal.locator('button[data-action="cancel"]').click()
 
     # The original modal should close after cancellation
     expect(modal).not_to_be_visible()

@@ -100,11 +100,27 @@ class PlanService:
             payload["filters"] = {"criticalJobInPlanFilter": filter_criteria}
         return self.client._make_request('POST', endpoint, json=payload)
 
+    def _job_action(self, action: str, job_id: str, plan_id: str = 'current'):
+        """Helper to perform an action on a job."""
+        endpoint = f"/plan/{plan_id}/job/{job_id}/action/{action}"
+        logging.info(f"Sending '{action}' action to job ID: {job_id}")
+        return self.client._make_request('PUT', endpoint)
+
     def cancel_job(self, job_id, plan_id='current'):
         """Sends a 'cancel' command to a specific job in the plan."""
-        endpoint = f"/plan/{plan_id}/job/{job_id}/action/cancel"
-        logging.info(f"Sending 'cancel' action to job ID: {job_id}")
-        return self.client._make_request('PUT', endpoint)
+        return self._job_action('cancel', job_id, plan_id)
+
+    def rerun_job(self, job_id, plan_id='current'):
+        """Sends a 'rerun' command to a specific job in the plan."""
+        return self._job_action('rerun', job_id, plan_id)
+
+    def hold_job(self, job_id, plan_id='current'):
+        """Sends a 'hold' command to a specific job in the plan."""
+        return self._job_action('hold', job_id, plan_id)
+
+    def release_job(self, job_id, plan_id='current'):
+        """Sends a 'release' command to a specific job in the plan."""
+        return self._job_action('release', job_id, plan_id)
 
     def execute_oql_query(self, oql_query, plan_id='current'):
         """Executes a raw OQL query against the plan."""
@@ -129,6 +145,13 @@ class ModelService:
         if filter_criteria:
             payload["filters"] = {"workstationFilter": filter_criteria}
         return self.client._make_request('POST', endpoint, json=payload)
+
+    def execute_oql_query(self, oql_query):
+        """Executes a raw OQL query against the model."""
+        endpoint = "/model/query"
+        params = {'oql': oql_query}
+        logging.info(f"Executing OQL query against model: {oql_query}")
+        return self.client._make_request('GET', endpoint, params=params, headers={'How-Many': '1000'})
 
 
 if __name__ == '__main__':

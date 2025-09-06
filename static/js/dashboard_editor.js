@@ -8,23 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentLayout = [];
 
-    const initEditor = () => {
-        editorContainer.innerHTML = `
-            <h2>Edit Your Dashboard Layout</h2>
-            <div id="widget-list" class="widget-editor-list"></div>
-            <div class="editor-actions">
-                <button id="add-widget-btn" class="btn">Add New Widget</button>
-                <button id="save-layout-btn" class="btn btn-primary">Save Layout</button>
-            </div>
-        `;
-        editorContainer.appendChild(messageArea);
-        widgetListContainer = document.getElementById('widget-list');
-
-        document.getElementById('add-widget-btn').addEventListener('click', addWidget);
-        document.getElementById('save-layout-btn').addEventListener('click', saveLayout);
-
-        loadLayout();
-    };
 
     const loadLayout = async () => {
         try {
@@ -64,8 +47,58 @@ document.addEventListener('DOMContentLoaded', () => {
                     <input type="text" name="title" value="${widget.title || ''}">
                 </div>
                 <div class="form-group">
+                    <label>Query Source:</label>
+                    <select name="oql_source">
+                        <option value="plan" ${widget.oql_source === 'plan' ? 'selected' : ''}>Plan (Live)</option>
+                        <option value="model" ${widget.oql_source === 'model' ? 'selected' : ''}>Model (Database)</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label>OQL Query:</label>
                     <textarea name="oql_query" rows="4">${widget.oql_query || ''}</textarea>
+                    <div class="validate-container">
+                        <button class="btn btn-secondary validate-oql-btn">Validate Query</button>
+                        <span class="validate-result"></span>
+                    </div>
+                </div>
+            `;
+        } else if (el.dataset.widgetType === 'oql_chart') {
+            fieldsHTML = `
+                <h4>OQL Chart Widget</h4>
+                <div class="form-group">
+                    <label>Title:</label>
+                    <input type="text" name="title" value="${widget.title || ''}">
+                </div>
+                <div class="form-group">
+                    <label>Chart Type:</label>
+                    <select name="chart_type">
+                        <option value="bar" ${widget.chart_type === 'bar' ? 'selected' : ''}>Bar Chart</option>
+                        <option value="pie" ${widget.chart_type === 'pie' ? 'selected' : ''}>Pie Chart</option>
+                        <option value="doughnut" ${widget.chart_type === 'doughnut' ? 'selected' : ''}>Doughnut Chart</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Query Source:</label>
+                    <select name="oql_source">
+                        <option value="plan" ${widget.oql_source === 'plan' ? 'selected' : ''}>Plan (Live)</option>
+                        <option value="model" ${widget.oql_source === 'model' ? 'selected' : ''}>Model (Database)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Label Column:</label>
+                    <input type="text" name="label_column" value="${widget.label_column || ''}" placeholder="e.g., status">
+                </div>
+                <div class="form-group">
+                    <label>Data Column:</label>
+                    <input type="text" name="data_column" value="${widget.data_column || ''}" placeholder="e.g., count">
+                </div>
+                <div class="form-group">
+                    <label>OQL Query:</label>
+                    <textarea name="oql_query" rows="4">${widget.oql_query || ''}</textarea>
+                    <div class="validate-container">
+                        <button class="btn btn-secondary validate-oql-btn">Validate Query</button>
+                        <span class="validate-result"></span>
+                    </div>
                 </div>
             `;
         } else { // Default to summary_count
@@ -103,7 +136,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 el.remove();
             }
         });
+
+        // Add event listener for the validate button if it exists
+        const validateBtn = el.querySelector('.validate-oql-btn');
+        if (validateBtn) {
+            validateBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const textarea = el.querySelector('textarea[name="oql_query"]');
+                const resultSpan = el.querySelector('.validate-result');
+                validateOQLQuery(textarea.value, resultSpan);
+            });
+        }
+
         return el;
+    };
+
+    const validateOQLQuery = async (query, resultSpan) => {
+        if (!query) {
+            resultSpan.textContent = '✗ Query is empty.';
+            resultSpan.className = 'validate-result error';
+            return;
+        }
+        resultSpan.textContent = 'Validating...';
+        resultSpan.className = 'validate-result info';
+
+        try {
+            const response = await fetch(`/api/oql?q=${encodeURIComponent(query)}`);
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.detail || 'Unknown error');
+            }
+            resultSpan.textContent = `✓ Query is valid. Found ${data.length} item(s).`;
+            resultSpan.className = 'validate-result success';
+        } catch (error) {
+            resultSpan.textContent = `✗ Invalid query: ${error.message}`;
+            resultSpan.className = 'validate-result error';
+        }
     };
 
     const initSortable = () => {
@@ -121,38 +189,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    const addWidget = () => {
-        const choice = prompt("Select widget type:\n1. Summary Count\n2. OQL Table", "1");
-        if (!choice) return; // User cancelled
 
-        if (widgetListContainer.querySelector('p')) {
-            widgetListContainer.innerHTML = '';
-        }
 
-        let newWidgetData;
-        const newId = `widget-${Date.now()}`;
+    // Replace the direct call to addWidget with the modal opener
+    const initEditor = () => {
+        editorContainer.innerHTML = `
+            <h2>Edit Your Dashboard Layout</h2>
+            <div id="widget-list" class="widget-editor-list"></div>
+            <div class="editor-actions">
+                <button id="add-widget-btn" class="btn">Add New Widget</button>
+                <button id="save-layout-btn" class="btn btn-primary">Save Layout</button>
+            </div>
+        `;
+        editorContainer.appendChild(messageArea);
+        widgetListContainer = document.getElementById('widget-list');
 
-        if (choice === '2') {
-            newWidgetData = {
-                id: newId,
-                type: 'oql_table',
-                title: 'New OQL Table',
-                oql_query: 'jobStreamName LIKE "@"'
-            };
-        } else { // Default to '1' or any other input
-            newWidgetData = {
-                id: newId,
-                type: 'summary_count',
-                label: "New Widget",
-                icon: "fas fa-plus-circle",
-                color_class: "color-gray",
-                api_metric: ""
-            };
-        }
+        // The button now calls the modal function instead of addWidget directly
+        document.getElementById('add-widget-btn').addEventListener('click', showAddWidgetModal);
+        document.getElementById('save-layout-btn').addEventListener('click', saveLayout);
 
-        currentLayout.push(newWidgetData);
-        const widgetEl = createWidgetEditorElement(newWidgetData);
-        widgetListContainer.appendChild(widgetEl);
+        loadLayout();
     };
 
     const saveLayout = async () => {
@@ -168,6 +224,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (widgetType === 'oql_table') {
                 widgetData.title = item.querySelector('[name="title"]').value;
+                widgetData.oql_source = item.querySelector('[name="oql_source"]').value;
+                widgetData.oql_query = item.querySelector('[name="oql_query"]').value;
+            } else if (widgetType === 'oql_chart') {
+                widgetData.title = item.querySelector('[name="title"]').value;
+                widgetData.chart_type = item.querySelector('[name="chart_type"]').value;
+                widgetData.oql_source = item.querySelector('[name="oql_source"]').value;
+                widgetData.label_column = item.querySelector('[name="label_column"]').value;
+                widgetData.data_column = item.querySelector('[name="data_column"]').value;
                 widgetData.oql_query = item.querySelector('[name="oql_query"]').value;
             } else {
                 widgetData.label = item.querySelector('[name="label"]').value;
