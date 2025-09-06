@@ -3,7 +3,7 @@ import json
 import configparser
 import re
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 import requests
 from fastapi import FastAPI, Request, HTTPException
@@ -44,7 +44,7 @@ class ConfigModel(BaseModel):
     hostname: str = Field(..., max_length=255, pattern=r'^[a-zA-Z0-9.-]+$')
     port: int = Field(..., ge=1, le=65535)
     username: str
-    password: str | None = None
+    password: Optional[str] = None
     verify_ssl: bool = False
 
 # --- Exception Handlers ---
@@ -107,7 +107,7 @@ async def oql_help_page(request: Request):
 
 # --- API Routes ---
 @app.get("/api/dashboard_data")
-@limiter.limit("30/minute")
+@limiter.limit("120/minute")
 async def get_dashboard_data(request: Request):
     client = get_client()
     all_job_streams = client.plan.query_job_streams()

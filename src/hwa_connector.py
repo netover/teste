@@ -8,19 +8,6 @@ import logging
 
 # --- Base Client and Services Structure ---
 
-class HWAClient:
-    """
-    Main client for interacting with the HCL Workload Automation (HWA) REST API.
-    This client handles the connection and authentication details and provides
-    access to different API services.
-    """
-    def __init__(self, config_path='config/config.ini'):
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Configuration file not found at '{config_path}'.")
-
-        config = configparser.ConfigParser()
-        config.read(config_path)
-
 from src.security import load_key, decrypt_password
 
 class HWAClient:
