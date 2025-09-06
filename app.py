@@ -3,6 +3,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 
@@ -15,6 +16,7 @@ import webbrowser
 import logging
 import configparser
 import json
+import re
 
 # --- Platform Specific Imports ---
 if sys.platform == 'win32':
@@ -33,14 +35,24 @@ if getattr(sys, 'frozen', False):
 else:
     APP_PATH = os.path.abspath(__file__)
 
+# Add CORS middleware
+# In a real production environment, this should be locked down to specific origins.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"], # Allows all methods
+    allow_headers=["*"], # Allows all headers
+)
+
 # Mount static files and templates
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 # --- Pydantic Models for Request Bodies ---
 class ConfigModel(BaseModel):
-    hostname: str
-    port: int
+    hostname: str = Field(..., max_length=255, pattern=r'^[a-zA-Z0-9.-]+$')
+    port: int = Field(..., ge=1, le=65535)
     username: str
     password: Optional[str] = None
     verify_ssl: bool = False
@@ -74,6 +86,14 @@ async def oql_help_page(request: Request):
     return templates.TemplateResponse("oql_help.html", {"request": request})
 
 # --- Backend API Routes ---
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logging.error(f"Unhandled exception for request {request.url}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"error": "An unexpected internal server error occurred."},
+    )
+
 def get_client():
     if not os.path.exists(CONFIG_FILE):
         raise HTTPException(status_code=404, detail="Configuration file not found. Please go to the Configuration page to set up the connection.")
@@ -109,9 +129,29 @@ async def get_dashboard_data():
     except ValueError as e:
         if "Authentication failed" in str(e):
             raise HTTPException(status_code=401, detail="Authentication Failed. Please check your username and password.")
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+        # Let the global handler catch other ValueErrors
+        raise
+    except requests.exceptions.ConnectionError as e:
+        raise HTTPException(status_code=500, detail=f"Connection Error: Could not connect to the HWA/TWS host. Please check connection settings.")
+
+def is_oql_query_safe(query: str) -> bool:
+    """
+    A simple OQL sanitizer to prevent modification commands.
+    Checks for dangerous keywords as whole words (case-insensitive).
+    """
+    # Blocklist of keywords that suggest modification or deletion.
+    # OQL is not SQL, but blocking these is a good security practice.
+    blocked_keywords = [
+        'DELETE', 'UPDATE', 'INSERT', 'CARRYFORWARD',
+        'CANCEL', 'HOLD', 'RELEASE', 'RERUN', 'SUBMIT'
+    ]
+
+    # Use regex to find whole words, ignoring case
+    for keyword in blocked_keywords:
+        if re.search(r'\b' + keyword + r'\b', query, re.IGNORECASE):
+            logging.warning(f"Blocked potentially harmful OQL query containing keyword: {keyword}")
+            return False
+    return True
 
 @app.get("/api/oql")
 async def execute_oql(q: str, source: str = "plan"):
@@ -122,6 +162,9 @@ async def execute_oql(q: str, source: str = "plan"):
     """
     if not q:
         raise HTTPException(status_code=400, detail="Missing 'q' parameter with OQL query.")
+
+    if not is_oql_query_safe(q):
+        raise HTTPException(status_code=400, detail="Query contains potentially harmful keywords.")
 
     try:
         client = get_client()
@@ -134,8 +177,6 @@ async def execute_oql(q: str, source: str = "plan"):
         raise HTTPException(status_code=400, detail=f"The OQL query failed. Please check your syntax. (Details: {str(e)})")
     except requests.exceptions.ConnectionError:
         raise HTTPException(status_code=500, detail="Connection Error: Could not connect to the HWA host.")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
 async def _job_action_endpoint(action: str, plan_id: str, job_id: str):
     """Generic helper for job action endpoints."""
@@ -152,8 +193,9 @@ async def _job_action_endpoint(action: str, plan_id: str, job_id: str):
 
         result = action_map[action](job_id, plan_id)
         return {"success": True, "message": f"'{action.capitalize()}' command sent to job {job_id} in plan {plan_id}.", "details": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+    except Exception:
+        # Let the global handler manage the response
+        raise
 
 @app.put("/api/plan/{plan_id}/job/{job_id}/action/cancel")
 async def cancel_job_in_plan(plan_id: str, job_id: str):
@@ -214,8 +256,8 @@ async def get_dashboard_layout():
         return layout_data
     except FileNotFoundError:
         return []
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Could not read layout file: {e}")
+    except Exception:
+        raise
 
 @app.post("/api/dashboard_layout")
 async def save_dashboard_layout(new_layout: List[Dict[str, Any]]):
@@ -223,8 +265,13 @@ async def save_dashboard_layout(new_layout: List[Dict[str, Any]]):
         with open(LAYOUT_FILE, 'w', encoding='utf-8') as f:
             json.dump(new_layout, f, indent=4)
         return {"success": True, "message": "Layout saved successfully."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error saving dashboard layout: {e}")
+    except Exception:
+        raise
+
+@app.get("/health")
+async def health_check():
+    """A simple health check endpoint."""
+    return {"status": "ok"}
 
 
 # --- System Tray & Server Logic ---
