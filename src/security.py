@@ -1,26 +1,26 @@
 from cryptography.fernet import Fernet
-import os
+from pathlib import Path
 
-KEY_PATH = 'config/secret.key'
+KEY_PATH = Path('config/secret.key')
 
-def generate_key():
+def generate_key() -> bytes:
     """
     Generates a new encryption key and saves it to the key file.
     """
     key = Fernet.generate_key()
-    with open(KEY_PATH, 'wb') as key_file:
-        key_file.write(key)
+    # Ensure the config directory exists
+    KEY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    KEY_PATH.write_bytes(key)
     return key
 
-def load_key():
+def load_key() -> bytes:
     """
     Loads the encryption key from the key file.
     If the key file does not exist, it generates a new one.
     """
-    if not os.path.exists(KEY_PATH):
+    if not KEY_PATH.exists():
         return generate_key()
-    with open(KEY_PATH, 'rb') as key_file:
-        return key_file.read()
+    return KEY_PATH.read_bytes()
 
 def encrypt_password(password: str, key: bytes) -> bytes:
     """
