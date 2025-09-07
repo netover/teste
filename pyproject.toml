@@ -39,6 +39,7 @@ dependencies = [
     "psycopg2-binary>=2.9.0",
     "prometheus-client>=0.18.0",
     "grafana-api>=1.0.3",
+    "aiosqlite>=0.17.0",
 ]
 
 [project.optional-dependencies]

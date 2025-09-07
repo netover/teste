@@ -6,8 +6,10 @@ from typing import List, Dict, Optional
 from dataclasses import dataclass, asdict
 import redis.asyncio as redis
 
+from src.core import config
+from src.core.database import AsyncSessionLocal
 from src.hwa_connector import HWAClient
-# from src.models.database import JobStatusHistory, AlertRule # Will be implemented next
+from src.models.database import JobStatusHistory
 from src.services.monitoring.websocket import ws_manager
 
 @dataclass
@@ -33,10 +35,10 @@ class JobMonitoringService:
         self.poll_interval = poll_interval
         self.job_cache: Dict[str, dict] = {}
 
-    async def initialize(self, redis_url: str = "redis://localhost:6379"):
+    async def initialize(self):
         """Initialize monitoring service with a Redis connection."""
-        self.redis_client = await redis.from_url(redis_url, decode_responses=True)
-        logging.info("JobMonitoringService initialized with Redis.")
+        self.redis_client = await redis.from_url(config.REDIS_URL, decode_responses=True)
+        logging.info(f"JobMonitoringService initialized with Redis at {config.REDIS_URL}")
 
     async def start_monitoring(self):
         """Start continuous job monitoring in a background task."""
@@ -112,16 +114,24 @@ class JobMonitoringService:
 
     async def _store_status_history(self, event: JobStatusEvent):
         """Store job status change in the database."""
-        # This will use SQLAlchemy to create and save a JobStatusHistory entry.
-        # Example:
-        # from src.core.database import SessionLocal
-        # from src.models.database import JobStatusHistory
-        # async with SessionLocal() as db:
-        #     history_entry = JobStatusHistory(**event.to_dict())
-        #     db.add(history_entry)
-        #     await db.commit()
-        logging.info(f"Database storage for job {event.job_name} is currently stubbed.")
-        pass
+        logging.debug(f"Attempting to store history for job {event.job_name}")
+        try:
+            async with AsyncSessionLocal() as session:
+                async with session.begin():
+                    history_entry = JobStatusHistory(
+                        job_id=event.job_id,
+                        job_name=event.job_name,
+                        old_status=event.old_status,
+                        new_status=event.new_status,
+                        workstation=event.workstation,
+                        duration=event.duration,
+                        error_message=event.error_message
+                        # The 'timestamp' field has a server_default, so we don't set it here
+                    )
+                    session.add(history_entry)
+            logging.info(f"Successfully stored status change for job '{event.job_name}' in the database.")
+        except Exception as e:
+            logging.error(f"Failed to store job status history for '{event.job_name}': {e}", exc_info=True)
 
     async def _check_alert_rules(self, event: JobStatusEvent):
         """Check if the status change triggers any defined alert rules."""

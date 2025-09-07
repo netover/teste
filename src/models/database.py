@@ -1,5 +1,4 @@
 from sqlalchemy import (
-    create_engine,
     Column,
     Integer,
     String,
@@ -9,14 +8,10 @@ from sqlalchemy import (
     Text,
     Enum as SAEnum,
 )
-from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.sql import func
 import enum
 
-from src.core import config
-
-# Define a base class for declarative models
-Base = declarative_base()
+from src.core.database import Base
 
 # --- Enums for Status and Severity ---
 class JobStatusEnum(str, enum.Enum):

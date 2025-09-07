@@ -1,6 +1,18 @@
 [tws]
+# HCL Workload Automation (TWS) connection settings
 hostname = YOUR_TWS_HOSTNAME
 port = 31116
 username = YOUR_USERNAME
-password = YOUR_PASSWORD
+# Leave password blank if you want to be prompted on startup
+password =
 verify_ssl = false
+
+[database]
+# SQLAlchemy database connection string.
+# For SQLite (file-based database), use: sqlite+aiosqlite:///./hwa_dashboard.db
+# For PostgreSQL, use: postgresql+asyncpg://user:password@host/dbname
+DATABASE_URL = sqlite+aiosqlite:///./hwa_dashboard.db
+
+[redis]
+# Redis connection URL for WebSocket Pub/Sub and Celery message broker.
+REDIS_URL = redis://localhost:6379
