@@ -37,6 +37,8 @@ class RealtimeMonitoring {
             this.reconnectAttempts = 0;
             this.reconnectDelay = this.initialReconnectDelay;
             this.showConnectionStatus('connected');
+            // Dispatch a custom event to notify other scripts
+            document.dispatchEvent(new CustomEvent('websocket:connected'));
         };
 
         this.socket.onmessage = (event) => {

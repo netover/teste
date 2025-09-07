@@ -38,6 +38,7 @@ REDIS_URL = config.get(
 
 # --- Security Configuration ---
 CORS_ALLOWED_ORIGINS = ["*"] # Consider making this configurable
+API_KEY = config.get('security', 'API_KEY', fallback=None)
 
 # --- Determine Application Path for Startup ---
 import sys

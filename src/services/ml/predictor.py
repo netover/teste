@@ -31,20 +31,20 @@ class JobFailurePredictorML:
             'workstation_load', 'time_of_day', 'day_of_week',
             'consecutive_failures', 'sla_breach_history'
         ]
-        # Ensure model directory exists
         MODEL_DIR.mkdir(exist_ok=True)
+        self._load_model() # Load model on initialization
 
-    async def train_failure_prediction_model(self, historical_data: pd.DataFrame) -> TrainingMetrics:
+    def train_failure_prediction_model(self, historical_data: pd.DataFrame) -> TrainingMetrics:
         """Trains the ML model to predict job failures based on historical data."""
         logging.info("Starting job failure prediction model training...")
 
         if historical_data.empty:
             raise ValueError("Historical data cannot be empty for training.")
 
-        features_df = await self._engineer_features(historical_data)
+        features_df = self._engineer_features(historical_data)
 
         X = features_df[self.feature_columns]
-        y = features_df['failed']  # Assumes a 'failed' column (0 or 1) exists
+        y = features_df['failed']
 
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, random_state=42, stratify=y
@@ -70,15 +70,12 @@ class JobFailurePredictorML:
             feature_importance=dict(zip(self.feature_columns, self.failure_model.feature_importances_))
         )
 
-    async def predict_job_failure(self, job_data: dict) -> JobFailurePrediction:
+    def predict_job_failure(self, job_data: dict) -> JobFailurePrediction:
         """Predicts the probability of failure for a single job."""
-        if not self.failure_model:
-            await self._load_model()
-
         if not self.failure_model:
             raise RuntimeError("Failure prediction model is not loaded. Please train the model first.")
 
-        features = await self._extract_job_features(job_data)
+        features = self._extract_job_features(job_data)
         features_scaled = self.scaler.transform([features])
 
         failure_prob = self.failure_model.predict_proba(features_scaled)[0][1]
@@ -95,10 +92,8 @@ class JobFailurePredictorML:
             recommendation=self._get_recommendation(failure_prob)
         )
 
-    async def _engineer_features(self, historical_data: pd.DataFrame) -> pd.DataFrame:
+    def _engineer_features(self, historical_data: pd.DataFrame) -> pd.DataFrame:
         """Engineers features from raw historical data for model training."""
-        # This is a placeholder for a more complex feature engineering pipeline.
-        # The real implementation would depend heavily on the available data.
         logging.info("Engineering features from historical data...")
         df = historical_data.copy()
         df['timestamp'] = pd.to_datetime(df['timestamp'])
@@ -106,7 +101,6 @@ class JobFailurePredictorML:
         df['day_of_week'] = df['timestamp'].dt.dayofweek
         df['time_of_day'] = df['hour'] / 24.0
 
-        # Mocking some features for demonstration
         df['avg_runtime'] = df.get('avg_runtime', np.random.uniform(100, 500))
         df['runtime_variance'] = df.get('runtime_variance', np.random.uniform(10, 50))
         df['failure_rate_7d'] = df.get('failure_rate_7d', np.random.uniform(0, 0.2))
@@ -117,10 +111,8 @@ class JobFailurePredictorML:
 
         return df
 
-    async def _extract_job_features(self, job_data: dict) -> list:
+    def _extract_job_features(self, job_data: dict) -> list:
         """Extracts real-time features for a single job for prediction."""
-        # In a real system, this would query a feature store or database.
-        # For now, we use mock data based on the input dict.
         return [
             job_data.get('avg_runtime', 300),
             job_data.get('runtime_variance', 50),
@@ -136,7 +128,7 @@ class JobFailurePredictorML:
         """Identifies the main risk factors for a prediction based on feature importance."""
         risk_factors = []
         for i, (feature_name, feature_value) in enumerate(zip(self.feature_columns, features)):
-            if importance.get(feature_name, 0) > 0.05: # Importance threshold
+            if importance.get(feature_name, 0) > 0.05:
                 risk_factors.append(RiskFactor(
                     factor=feature_name,
                     value=feature_value,
@@ -159,9 +151,8 @@ class JobFailurePredictorML:
         logging.info(f"Saving models to {MODEL_DIR}...")
         joblib.dump(self.failure_model, FAILURE_MODEL_PATH)
         joblib.dump(self.scaler, SCALER_PATH)
-        # joblib.dump(self.anomaly_detector, ANOMALY_MODEL_PATH) # If anomaly detector is trained
 
-    async def _load_model(self):
+    def _load_model(self):
         """Loads models and scaler from disk."""
         try:
             if FAILURE_MODEL_PATH.exists() and SCALER_PATH.exists():

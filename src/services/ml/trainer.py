@@ -16,20 +16,19 @@ class ModelTrainingService:
     def __init__(self):
         logging.info("ModelTrainingService initialized.")
 
-    async def trigger_all_training(self) -> Dict[str, TrainingMetrics]:
+    def trigger_all_training(self) -> Dict[str, TrainingMetrics]:
         """
         Triggers the training for all available models.
         """
         logging.info("Starting training for all models...")
-        failure_metrics = await self.trigger_failure_prediction_training()
-        # In a real scenario, you would also trigger and get metrics from other models
-        # await self.trigger_workload_forecasting_training()
+        failure_metrics = self.trigger_failure_prediction_training()
+        self.trigger_workload_forecasting_training()
         logging.info("All model training processes triggered.")
         return {
             "failure_predictor": failure_metrics
         }
 
-    async def trigger_failure_prediction_training(self) -> TrainingMetrics:
+    def trigger_failure_prediction_training(self) -> TrainingMetrics:
         """
         Generates mock historical data and trains the failure prediction model.
         """
@@ -37,10 +36,10 @@ class ModelTrainingService:
         historical_data = self._generate_mock_job_history(days=30, num_jobs=50)
         logging.info(f"Generated {len(historical_data)} historical job records.")
 
-        metrics = await job_predictor.train_failure_prediction_model(historical_data)
+        metrics = job_predictor.train_failure_prediction_model(historical_data)
         return metrics
 
-    async def trigger_workload_forecasting_training(self):
+    def trigger_workload_forecasting_training(self):
         """
         Generates mock historical data and trains the workload forecasting models.
         """
@@ -48,7 +47,7 @@ class ModelTrainingService:
         historical_data = self._generate_mock_workload_history(days=90)
         logging.info(f"Generated {len(historical_data)} historical workload records.")
 
-        await workload_forecaster.train_workload_forecast(historical_data)
+        workload_forecaster.train_workload_forecast(historical_data)
 
 
     def _generate_mock_job_history(self, days: int, num_jobs: int) -> pd.DataFrame:

@@ -499,5 +499,11 @@ document.addEventListener('DOMContentLoaded', () => {
     renderWidgets();        // 2. Build the widget UI.
     initDragAndDrop();      // 3. Make the widgets draggable.
     adaptivePoller.start(); // 4. Start the adaptive polling.
-    setupShutdown();        // Set up the shutdown button.
+    setupShutdown();        // 5. Set up the shutdown button.
+
+    // 6. Listen for WebSocket connection to stop polling
+    document.addEventListener('websocket:connected', () => {
+        console.log('WebSocket connected. Stopping adaptive poller.');
+        adaptivePoller.stop();
+    });
 });

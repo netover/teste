@@ -9,10 +9,8 @@ def train_all_models_task():
     """
     logging.info("Celery task 'train_all_models_task' started.")
     try:
-        # Since model_trainer methods are async, we need to run them in an event loop.
-        # Celery 5+ has better support for this, but creating a new loop is a safe way.
-        import asyncio
-        result = asyncio.run(model_trainer.trigger_all_training())
+        # The training service is now synchronous, so we can call it directly.
+        result = model_trainer.trigger_all_training()
         logging.info("Celery task 'train_all_models_task' finished successfully.")
         return result
     except Exception as e:

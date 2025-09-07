@@ -18,20 +18,17 @@ class WorkloadForecaster:
     """
     def __init__(self):
         self.models: Dict[str, Prophet] = {}
-        # Ensure model directory exists
         FORECAST_MODEL_DIR.mkdir(exist_ok=True)
+        # We can lazy-load models on demand in the forecast method
 
-    async def train_workload_forecast(self, historical_data: pd.DataFrame):
+    def train_workload_forecast(self, historical_data: pd.DataFrame):
         """
         Trains Prophet models for workload forecasting based on historical data.
-        The dataframe should contain 'date', 'workstation', and metric columns
-        like 'job_count', 'total_runtime', 'cpu_usage'.
         """
         logging.info("Starting workload forecasting model training...")
         if historical_data.empty:
             raise ValueError("Historical data cannot be empty for training.")
 
-        # Ensure 'date' is a datetime object
         historical_data['date'] = pd.to_datetime(historical_data['date'])
 
         for workstation in historical_data['workstation'].unique():
@@ -41,15 +38,12 @@ class WorkloadForecaster:
                 if metric not in ws_data.columns:
                     continue
 
-                # Prepare data for Prophet ('ds' and 'y' columns)
                 model_data = ws_data[['date', metric]].rename(
                     columns={'date': 'ds', metric: 'y'}
                 )
 
                 model = Prophet(
-                    yearly_seasonality=True,
-                    weekly_seasonality=True,
-                    daily_seasonality=True,
+                    yearly_seasonality=True, weekly_seasonality=True, daily_seasonality=True,
                     changepoint_prior_scale=0.05
                 )
                 model.fit(model_data)
@@ -60,7 +54,7 @@ class WorkloadForecaster:
 
         logging.info("Workload forecasting model training complete.")
 
-    async def forecast_workload(self, workstation: str, days_ahead: int = 7) -> WorkstationForecastResponse:
+    def forecast_workload(self, workstation: str, days_ahead: int = 7) -> WorkstationForecastResponse:
         """
         Generates a workload forecast for a specific workstation.
         """
@@ -71,7 +65,6 @@ class WorkloadForecaster:
             model_key = f"{workstation}_{metric}"
 
             if model_key not in self.models:
-                # Attempt to load from disk if not in memory
                 self._load_model(model_key)
 
             if model_key in self.models:
@@ -79,11 +72,9 @@ class WorkloadForecaster:
                 future = model.make_future_dataframe(periods=days_ahead)
                 forecast_df = model.predict(future)
 
-                # Extract relevant forecast data
                 future_forecast = forecast_df.tail(days_ahead)
 
-                # Convert to Pydantic models
-                predictions = [ForecastDatapoint(**row) for row in future_forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].to_dict('records')]
+                predictions = [ForecastDatapoint(ds=row.ds, yhat=row.yhat, yhat_lower=row.yhat_lower, yhat_upper=row.yhat_upper) for _, row in future_forecast.iterrows()]
 
                 forecasts[metric] = WorkloadForecast(
                     predictions=predictions,

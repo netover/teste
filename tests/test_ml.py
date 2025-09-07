@@ -32,33 +32,30 @@ def mock_workload_history_df():
 
 class TestJobFailurePredictor:
 
-    async def test_train_failure_model(self, mocker, mock_job_history_df):
+    def test_train_failure_model(self, mocker, mock_job_history_df):
         """Tests the training process of the failure predictor."""
-        mocker.patch('joblib.dump') # Mock joblib to prevent actual file writing
+        mocker.patch('joblib.dump')
         predictor = JobFailurePredictorML()
 
-        metrics = await predictor.train_failure_prediction_model(mock_job_history_df)
+        metrics = predictor.train_failure_prediction_model(mock_job_history_df)
 
         assert isinstance(metrics, TrainingMetrics)
         assert metrics.accuracy >= 0
         assert "avg_runtime" in metrics.feature_importance
 
-    async def test_predict_job_failure(self, mocker):
+    def test_predict_job_failure(self, mocker):
         """Tests the prediction method of the failure predictor."""
-        # Mock the loading of a pre-trained model
         mocker.patch('joblib.load', return_value=mocker.MagicMock())
         mocker.patch('pathlib.Path.exists', return_value=True)
 
         predictor = JobFailurePredictorML()
-        await predictor._load_model() # Manually trigger loading the mocked model
 
-        # Mock the model's prediction methods
         predictor.failure_model.predict_proba = mocker.MagicMock(return_value=[[0.8, 0.2]])
         predictor.failure_model.predict = mocker.MagicMock(return_value=[0])
         predictor.failure_model.feature_importances_ = np.random.rand(len(predictor.feature_columns))
 
         job_data = {"jobStreamName": "TEST_JOB"}
-        prediction = await predictor.predict_job_failure(job_data)
+        prediction = predictor.predict_job_failure(job_data)
 
         assert isinstance(prediction, JobFailurePrediction)
         assert prediction.job_name == "TEST_JOB"
@@ -68,28 +65,26 @@ class TestJobFailurePredictor:
 
 class TestWorkloadForecaster:
 
-    async def test_train_workload_forecast(self, mocker, mock_workload_history_df):
+    def test_train_workload_forecast(self, mocker, mock_workload_history_df):
         """Tests the training process of the workload forecaster."""
-        mocker.patch('joblib.dump') # Mock joblib to prevent file writing
+        mocker.patch('joblib.dump')
         forecaster = WorkloadForecaster()
 
-        await forecaster.train_workload_forecast(mock_workload_history_df)
+        forecaster.train_workload_forecast(mock_workload_history_df)
 
-        # Check if models were created for each metric
         assert "CPU1_job_count" in forecaster.models
         assert "CPU1_total_runtime" in forecaster.models
         assert "CPU1_cpu_usage" in forecaster.models
 
-    async def test_forecast_workload(self, mocker, mock_workload_history_df):
+    def test_forecast_workload(self, mocker, mock_workload_history_df):
         """Tests the forecasting method."""
         mocker.patch('joblib.dump')
-        mocker.patch('pathlib.Path.exists', return_value=False) # Ensure it trains, not loads
+        mocker.patch('pathlib.Path.exists', return_value=False)
 
         forecaster = WorkloadForecaster()
-        # Train a mock model first
-        await forecaster.train_workload_forecast(mock_workload_history_df)
+        forecaster.train_workload_forecast(mock_workload_history_df)
 
-        response = await forecaster.forecast_workload("CPU1", days_ahead=7)
+        response = forecaster.forecast_workload("CPU1", days_ahead=7)
 
         assert isinstance(response, WorkstationForecastResponse)
         assert response.workstation == "CPU1"
