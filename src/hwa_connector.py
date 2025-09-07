@@ -1,10 +1,10 @@
 import configparser
-import requests
-from requests.auth import HTTPBasicAuth
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+import httpx
 import os
 import logging
+import asyncio
+
+from src.security import load_key, decrypt_password
 
 # --- Base Client and Services Structure ---
 
@@ -12,22 +12,7 @@ class HWAClient:
     """
     Main client for interacting with the HCL Workload Automation (HWA) REST API.
     This client handles the connection and authentication details and provides
-    access to different API services.
-    """
-    def __init__(self, config_path='config/config.ini'):
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Configuration file not found at '{config_path}'.")
-
-        config = configparser.ConfigParser()
-        config.read(config_path)
-
-from src.security import load_key, decrypt_password
-
-class HWAClient:
-    """
-    Main client for interacting with the HCL Workload Automation (HWA) REST API.
-    This client handles the connection and authentication details and provides
-    access to different API services.
+    access to different API services. It is designed to be used as an async context manager.
     """
     def __init__(self, config_path='config/config.ini'):
         if not os.path.exists(config_path):
@@ -50,38 +35,45 @@ class HWAClient:
             raise ValueError(f"Config file is missing a required section/option: {e}")
 
         self.base_url = f"https://{self.hostname}:{self.port}/twsd/v1"
-
-        # Setup session with connection pooling and retry logic
-        self.session = requests.Session()
-        self.session.auth = HTTPBasicAuth(self.username, self.password)
-        self.session.verify = self.verify_ssl
-
-        retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[502, 503, 504])
-        adapter = HTTPAdapter(max_retries=retries)
-        self.session.mount('http://', adapter)
-        self.session.mount('https://', adapter)
-
-        logging.info(f"HWA Client initialized. SSL verification: {'ENABLED' if self.verify_ssl else 'DISABLED'}. Retries: {retries.total}")
+        self.client = None
 
         # Initialize service handlers
         self.plan = PlanService(self)
         self.model = ModelService(self)
 
-    def _make_request(self, method, endpoint, **kwargs):
+    async def __aenter__(self):
+        """Initializes the async client when entering the context."""
+        retries = httpx.Limits(max_keepalive_connections=5, max_connections=10)
+        transport = httpx.AsyncHTTPTransport(retries=3, verify=self.verify_ssl)
+
+        self.client = httpx.AsyncClient(
+            auth=(self.username, self.password),
+            transport=transport,
+            base_url=self.base_url
+        )
+        logging.info(f"HWA Async Client initialized. SSL verification: {'ENABLED' if self.verify_ssl else 'DISABLED'}.")
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Closes the async client when exiting the context."""
+        if self.client:
+            await self.client.aclose()
+            logging.info("HWA Async Client closed.")
+
+    async def _make_request(self, method, endpoint, **kwargs):
         """Internal helper for making all API requests."""
-        url = f"{self.base_url}{endpoint}"
-        logging.info(f"Request: {method} {url}")
+        logging.info(f"Request: {method} {self.base_url}{endpoint}")
         try:
-            response = self.session.request(method, url, **kwargs)
+            response = await self.client.request(method, endpoint, **kwargs)
             response.raise_for_status()
             return response.json() if response.content else {}
-        except requests.exceptions.HTTPError as http_err:
+        except httpx.HTTPStatusError as http_err:
             error_message = f"HTTP error: {http_err}. Response: {http_err.response.text}"
             logging.error(error_message)
-            raise ValueError(error_message)
-        except requests.exceptions.RequestException as req_err:
+            raise ValueError(error_message) from http_err
+        except httpx.RequestError as req_err:
             logging.error(f"Request failed: {req_err}")
-            raise requests.exceptions.RequestException(f"Request failed: {req_err}")
+            raise httpx.RequestError(f"Request failed: {req_err}") from req_err
 
 
 class PlanService:
@@ -91,56 +83,51 @@ class PlanService:
     def __init__(self, client: HWAClient):
         self.client = client
 
-    def query_job_streams(self, filter_criteria=None):
+    async def query_job_streams(self, filter_criteria=None):
         """Queries for job streams in the current plan."""
         endpoint = "/plan/current/jobstream/query"
         payload = {"columns": ["jobStreamName", "workstationName", "status", "startTime", "endTime", "jobInPlanOnCriticalPathFilter"]}
         if filter_criteria:
             payload["filters"] = {"jobStreamInPlanFilter": filter_criteria}
-        return self.client._make_request('POST', endpoint, json=payload, headers={'How-Many': '500'})
+        return await self.client._make_request('POST', endpoint, json=payload, headers={'How-Many': '500'})
 
-    def get_job_log(self, job_id, plan_id='current'):
+    async def get_job_log(self, job_id, plan_id='current'):
         """Retrieves the log for a specific job in the plan."""
         endpoint = f"/plan/{plan_id}/job/{job_id}/joblog"
-        return self.client._make_request('GET', endpoint)
+        return await self.client._make_request('GET', endpoint)
 
-    def get_critical_jobs(self, plan_id='current', filter_criteria=None):
+    async def get_critical_jobs(self, plan_id='current', filter_criteria=None):
         """Queries for critical jobs in the specified plan."""
         endpoint = f"/plan/{plan_id}/criticaljob/query"
         payload = {"columns": ["jobInPlanOnCriticalNetwork"]}
         if filter_criteria:
             payload["filters"] = {"criticalJobInPlanFilter": filter_criteria}
-        return self.client._make_request('POST', endpoint, json=payload)
+        return await self.client._make_request('POST', endpoint, json=payload)
 
-    def _job_action(self, action: str, job_id: str, plan_id: str = 'current'):
+    async def _job_action(self, action: str, job_id: str, plan_id: str = 'current'):
         """Helper to perform an action on a job."""
         endpoint = f"/plan/{plan_id}/job/{job_id}/action/{action}"
         logging.info(f"Sending '{action}' action to job ID: {job_id}")
-        return self.client._make_request('PUT', endpoint)
+        return await self.client._make_request('PUT', endpoint)
 
-    def cancel_job(self, job_id, plan_id='current'):
-        """Sends a 'cancel' command to a specific job in the plan."""
-        return self._job_action('cancel', job_id, plan_id)
+    async def cancel_job(self, job_id, plan_id='current'):
+        return await self._job_action('cancel', job_id, plan_id)
 
-    def rerun_job(self, job_id, plan_id='current'):
-        """Sends a 'rerun' command to a specific job in the plan."""
-        return self._job_action('rerun', job_id, plan_id)
+    async def rerun_job(self, job_id, plan_id='current'):
+        return await self._job_action('rerun', job_id, plan_id)
 
-    def hold_job(self, job_id, plan_id='current'):
-        """Sends a 'hold' command to a specific job in the plan."""
-        return self._job_action('hold', job_id, plan_id)
+    async def hold_job(self, job_id, plan_id='current'):
+        return await self._job_action('hold', job_id, plan_id)
 
-    def release_job(self, job_id, plan_id='current'):
-        """Sends a 'release' command to a specific job in the plan."""
-        return self._job_action('release', job_id, plan_id)
+    async def release_job(self, job_id, plan_id='current'):
+        return await self._job_action('release', job_id, plan_id)
 
-    def execute_oql_query(self, oql_query, plan_id='current'):
+    async def execute_oql_query(self, oql_query, plan_id='current'):
         """Executes a raw OQL query against the plan."""
         endpoint = f"/plan/{plan_id}/query"
         params = {'oql': oql_query}
         logging.info(f"Executing OQL query: {oql_query}")
-        # This is a GET request, which is a common pattern for OQL queries
-        return self.client._make_request('GET', endpoint, params=params, headers={'How-Many': '1000'})
+        return await self.client._make_request('GET', endpoint, params=params, headers={'How-Many': '1000'})
 
 
 class ModelService:
@@ -150,35 +137,36 @@ class ModelService:
     def __init__(self, client: HWAClient):
         self.client = client
 
-    def query_workstations(self, filter_criteria=None):
+    async def query_workstations(self, filter_criteria=None):
         """Queries for workstations defined in the model."""
         endpoint = "/model/workstation/query"
         payload = {"columns": ["workstationName", "status"]}
         if filter_criteria:
             payload["filters"] = {"workstationFilter": filter_criteria}
-        return self.client._make_request('POST', endpoint, json=payload)
+        return await self.client._make_request('POST', endpoint, json=payload)
 
-    def execute_oql_query(self, oql_query):
+    async def execute_oql_query(self, oql_query):
         """Executes a raw OQL query against the model."""
         endpoint = "/model/query"
         params = {'oql': oql_query}
         logging.info(f"Executing OQL query against model: {oql_query}")
-        return self.client._make_request('GET', endpoint, params=params, headers={'How-Many': '1000'})
+        return await self.client._make_request('GET', endpoint, params=params, headers={'How-Many': '1000'})
 
 
-if __name__ == '__main__':
+async def main_test():
+    """Async main function for standalone testing."""
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-    print("--- HWA Client SDK Standalone Test ---")
+    print("--- HWA Client SDK Standalone Test (Async) ---")
 
     if not os.path.exists('config/config.ini'):
         print("\n[TEST INFO] 'config/config.ini' not found.")
-    else:
-        try:
-            print("\n[TEST INFO] Initializing HWAClient...")
-            client = HWAClient()
+        return
 
+    try:
+        print("\n[TEST INFO] Initializing HWAClient...")
+        async with HWAClient() as client:
             print("\n[TEST INFO] Example: Querying for all workstations via ModelService...")
-            workstations = client.model.query_workstations()
+            workstations = await client.model.query_workstations()
             if workstations:
                 print(f"[SUCCESS] Retrieved {len(workstations)} workstations.")
                 online_workstations = [w for w in workstations if w.get('status', '').lower() == 'link']
@@ -187,9 +175,12 @@ if __name__ == '__main__':
                 print("[INFO] No workstations found.")
 
             print("\n[TEST INFO] Example: Querying for critical jobs via PlanService...")
-            critical_jobs = client.plan.get_critical_jobs()
+            critical_jobs = await client.plan.get_critical_jobs()
             print(f"[SUCCESS] Retrieved {len(critical_jobs)} critical jobs.")
 
-        except (FileNotFoundError, ValueError, requests.exceptions.RequestException) as e:
-            print(f"\n[ERROR] An error occurred during the test: {e}")
+    except (FileNotFoundError, ValueError, httpx.RequestError) as e:
+        print(f"\n[ERROR] An error occurred during the test: {e}")
     print("\n--- Test Complete ---")
+
+if __name__ == '__main__':
+    asyncio.run(main_test())

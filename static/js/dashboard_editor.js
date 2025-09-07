@@ -191,6 +191,60 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+    const showAddWidgetModal = () => {
+        const modalHTML = `
+            <div class="form-group">
+                <label for="widget-type-select">Select Widget Type:</label>
+                <select id="widget-type-select" class="form-control">
+                    <option value="summary_count">Summary Count</option>
+                    <option value="oql_table">OQL Table</option>
+                    <option value="oql_chart">OQL Chart</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button id="create-widget-btn" class="btn btn-primary">Create</button>
+            </div>
+        `;
+
+        const setupCallback = (modalContent, closeModal) => {
+            const createBtn = modalContent.querySelector('#create-widget-btn');
+            const typeSelect = modalContent.querySelector('#widget-type-select');
+
+            createBtn.addEventListener('click', () => {
+                const widgetType = typeSelect.value;
+                const newWidget = {
+                    id: `widget_${new Date().getTime()}`, // Simple unique ID
+                    type: widgetType
+                };
+
+                // Add default properties based on type
+                if (widgetType === 'summary_count') {
+                    newWidget.label = "New Summary";
+                    newWidget.icon = "fas fa-info-circle";
+                    newWidget.api_metric = "some_metric";
+                    newWidget.color_class = "color-gray";
+                } else if (widgetType === 'oql_table') {
+                    newWidget.title = "New OQL Table";
+                    newWidget.oql_source = "plan";
+                    newWidget.oql_query = "SHOW JOBS";
+                } else if (widgetType === 'oql_chart') {
+                    newWidget.title = "New OQL Chart";
+                    newWidget.chart_type = "bar";
+                    newWidget.oql_source = "plan";
+                    newWidget.label_column = "status";
+                    newWidget.data_column = "count";
+                    newWidget.oql_query = "SHOW JOBS | GROUP BY status";
+                }
+
+                currentLayout.push(newWidget);
+                renderWidgetList();
+                closeModal();
+            });
+        };
+
+        createModal('Add New Widget', modalHTML, setupCallback);
+    };
+
     // Replace the direct call to addWidget with the modal opener
     const initEditor = () => {
         editorContainer.innerHTML = `
