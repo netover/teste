@@ -10,7 +10,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from src.core import config
-from src.api import pages, config as api_config, hwa, websockets, monitoring
+from src.api import pages, config as api_config, hwa, websockets, monitoring, ml
 from src.services.monitoring.websocket import ws_manager
 from src.services.monitoring.job_monitor import job_monitor
 
@@ -69,6 +69,7 @@ app.include_router(api_config.router)
 app.include_router(hwa.router)
 app.include_router(websockets.router)
 app.include_router(monitoring.router)
+app.include_router(ml.router)
 
 # --- Exception Handlers ---
 @app.exception_handler(Exception)
