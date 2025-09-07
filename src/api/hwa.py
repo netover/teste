@@ -7,6 +7,7 @@ from slowapi.util import get_remote_address
 
 from src.core import config
 from src.hwa_connector import HWAClient
+from src.security import get_api_key
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -80,7 +81,11 @@ async def _job_action_endpoint(action: str, plan_id: str, job_id: str, client: H
     result = await action_map[action](job_id, plan_id)
     return {"success": True, "message": f"'{action.capitalize()}' command sent.", "details": result}
 
-@router.put("/api/plan/{plan_id}/job/{job_id}/action/{action}", tags=["HWA"])
+@router.put(
+    "/api/plan/{plan_id}/job/{job_id}/action/{action}",
+    tags=["HWA"],
+    dependencies=[Depends(get_api_key)]
+)
 @limiter.limit("10/minute")
 async def job_action(request: Request, plan_id: str, job_id: str, action: str, client: HWAClient = Depends(get_hwa_client)):
     return await _job_action_endpoint(action, plan_id, job_id, client)

@@ -1,6 +1,11 @@
 import os
 import configparser
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from a .env file if it exists
+# This is useful for local development.
+load_dotenv()
 
 # --- Core Application Paths ---
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -13,39 +18,42 @@ ICON_FILE = BASE_DIR / 'icon.png'
 
 # --- Application Metadata ---
 APP_NAME = "HWA Dashboard"
-APP_VERSION = "2.0.0" # Updated version
+APP_VERSION = "2.0.0"
 
 # --- Configuration Loading ---
 config = configparser.ConfigParser()
 config.read(CONFIG_FILE)
 
 # --- Server Configuration ---
-SERVER_PORT = config.getint('server', 'PORT', fallback=63136)
-SERVER_HOST = config.get('server', 'HOST', fallback="0.0.0.0")
+# Load from environment variable first, then fallback to config file, then to a hardcoded default.
+SERVER_PORT = int(os.getenv('SERVER_PORT', config.get('server', 'PORT', fallback=63136)))
+SERVER_HOST = os.getenv('SERVER_HOST', config.get('server', 'HOST', fallback="0.0.0.0"))
 BASE_URL = f"http://localhost:{SERVER_PORT}"
 
+# --- HWA Connection Configuration ---
+HWA_HOSTNAME = os.getenv('HWA_HOSTNAME', config.get('tws', 'hostname', fallback=None))
+HWA_PORT = int(os.getenv('HWA_PORT', config.get('tws', 'port', fallback=31116)))
+HWA_USERNAME = os.getenv('HWA_USERNAME', config.get('tws', 'username', fallback=None))
+HWA_PASSWORD = os.getenv('HWA_PASSWORD', config.get('tws', 'password', fallback=None))
+
 # --- Database and Redis Configuration ---
-DATABASE_URL = config.get(
-    'database',
+DATABASE_URL = os.getenv(
     'DATABASE_URL',
-    fallback='sqlite+aiosqlite:///./hwa_dashboard.db'
+    config.get('database', 'DATABASE_URL', fallback='sqlite+aiosqlite:///./hwa_dashboard.db')
 )
-REDIS_URL = config.get(
-    'redis',
+REDIS_URL = os.getenv(
     'REDIS_URL',
-    fallback='redis://localhost:6379'
+    config.get('redis', 'REDIS_URL', fallback='redis://localhost:6379')
 )
 
 # --- Security Configuration ---
+API_KEY = os.getenv('API_KEY', config.get('security', 'API_KEY', fallback=None))
 CORS_ALLOWED_ORIGINS = ["*"] # Consider making this configurable
-API_KEY = config.get('security', 'API_KEY', fallback=None)
 
 # --- Determine Application Path for Startup ---
 import sys
 
 if getattr(sys, 'frozen', False):
-    # The application is running in a bundled exe from PyInstaller
     APP_PATH = sys.executable
 else:
-    # The application is running in a normal Python environment
     APP_PATH = str(BASE_DIR / 'main.py')

@@ -38,6 +38,20 @@ This project is a lightweight, web-based dashboard for monitoring and interactin
     ```
 6.  The application will open in your default web browser.
 
+### Environment Variables (Recommended)
+For production-like environments, it is recommended to use environment variables for configuration, as they are more secure than plain text files. The application will prioritize environment variables over the `config.ini` file.
+
+You can create a `.env` file in the project root for local development:
+```
+HWA_HOSTNAME=your_hostname
+HWA_PORT=31116
+HWA_USERNAME=your_user
+HWA_PASSWORD=your_secret_password
+DATABASE_URL=postgresql+asyncpg://user:pass@host/dbname
+REDIS_URL=redis://host:port
+API_KEY=a_very_secret_key
+```
+
 ## Testing
 
 The test suite uses `pytest`. Due to a known conflict between the `pytest-playwright` and `pytest-asyncio` plugins, the tests must be run in two separate batches to ensure the asyncio event loop is handled correctly.
@@ -81,3 +95,10 @@ To build the executable yourself:
     pyinstaller build.spec
     ```
 4.  The final executable will be in the `dist/` directory.
+
+## Developer Notes
+
+### Frontend Build Process
+An attempt was made to implement a Webpack build process to bundle frontend assets. This failed due to persistent, unresolvable errors within Webpack's internal `enhanced-resolve` module, likely caused by an incompatibility in the Node.js environment.
+
+As a result, the build process has been reverted. The application currently loads individual JavaScript files directly in the browser. This is functional for development but is not optimized for production performance. This can be revisited in a different development environment.

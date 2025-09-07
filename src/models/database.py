@@ -44,7 +44,7 @@ class JobStatusHistory(Base):
     old_status = Column(String)
     new_status = Column(String, nullable=False)
     workstation = Column(String, index=True)
-    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     duration = Column(Float, nullable=True) # Duration in seconds
     error_message = Column(Text, nullable=True)
 
