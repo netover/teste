@@ -335,17 +335,18 @@ document.addEventListener('DOMContentLoaded', () => {
         jobStreamsGrid.innerHTML = '';
         if (jobStreams.length === 0) { jobStreamsGrid.innerHTML = '<p>No job streams found.</p>'; return; }
         jobStreams.forEach(js => {
-            // Each job stream card now gets a click listener to open a detail view
             const card = document.createElement('div');
             card.className = 'job-stream-card';
-            card.dataset.jobId = js.id; // Store job ID for actions
-            card.dataset.planId = 'current'; // Assuming 'current' plan for now
+            card.dataset.jobId = js.id; // Original job ID
+            card.dataset.jobName = js.jobStreamName; // Added for real-time updates
+            card.dataset.planId = 'current';
 
             const statusClass = getStatusClass(js.status);
+            // The status span now has a 'status-badge' class for easier selection
             card.innerHTML = `
                 <h3>${js.jobStreamName || 'N/A'}</h3>
                 <p><strong>Workstation:</strong> ${js.workstationName || 'N/A'}</p>
-                <p><strong>Status:</strong> <span class="status ${statusClass}">${js.status || 'N/A'}</span></p>
+                <p><strong>Status:</strong> <span class="status-badge ${statusClass}">${js.status || 'N/A'}</span></p>
                 <p><strong>Start Time:</strong> ${js.startTime ? new Date(js.startTime).toLocaleString() : 'N/A'}</p>
             `;
             card.addEventListener('click', () => createJobDetailWindow(js));

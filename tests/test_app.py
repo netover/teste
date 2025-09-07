@@ -8,7 +8,8 @@ import json
 # Ensure the src directory is in the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.api_server import app, get_hwa_client
+from src.api_server import app
+from src.api.hwa import get_hwa_client
 
 # Use FastAPI's TestClient
 client = TestClient(app)
@@ -73,12 +74,14 @@ def test_dashboard_data_endpoint(dummy_config_file):
     app.dependency_overrides.clear()
 
 
+from pathlib import Path
+
 def test_get_layout_endpoint(dummy_layout_file):
     """
     Tests the /api/dashboard_layout GET endpoint.
     """
     from src.core import config
-    config.LAYOUT_FILE = dummy_layout_file
+    config.LAYOUT_FILE = Path(dummy_layout_file)
 
     response = client.get('/api/dashboard_layout')
     assert response.status_code == 200
@@ -91,7 +94,7 @@ def test_save_layout_endpoint():
     Tests the /api/dashboard_layout POST endpoint.
     """
     from src.core import config
-    layout_path = 'dashboard_layout.json'
+    layout_path = Path('dashboard_layout.json')
     config.LAYOUT_FILE = layout_path
 
     new_layout = [{"id": "saved_widget", "label": "Saved"}]

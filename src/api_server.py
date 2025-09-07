@@ -1,27 +1,53 @@
 import logging
-import json
-import configparser
-import re
-import os
-from typing import Any
-
-from fastapi import FastAPI, Request, HTTPException, Depends
-from fastapi.responses import HTMLResponse, JSONResponse
+import asyncio
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from pydantic import BaseModel, Field
 
 from src.core import config
-from src.hwa_connector import HWAClient
-from src.security import load_key, encrypt_password
+from src.api import pages, config as api_config, hwa, websockets, monitoring
+from src.services.monitoring.websocket import ws_manager
+from src.services.monitoring.job_monitor import job_monitor
+
+# --- Lifespan Management for Background Tasks ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logging.info("Application startup...")
+    # Initialize services
+    await ws_manager.initialize()
+    await job_monitor.initialize()
+
+    # Start background tasks
+    pubsub_task = asyncio.create_task(ws_manager.subscribe_to_updates())
+    monitoring_task = asyncio.create_task(job_monitor.start_monitoring())
+
+    yield
+
+    # Shutdown
+    logging.info("Application shutdown...")
+    job_monitor.stop_monitoring()
+    monitoring_task.cancel()
+    pubsub_task.cancel()
+    try:
+        await monitoring_task
+        await pubsub_task
+    except asyncio.CancelledError:
+        logging.info("Background tasks cancelled successfully.")
 
 # --- App Setup ---
 limiter = Limiter(key_func=get_remote_address)
-app = FastAPI(title=config.APP_NAME, version=config.APP_VERSION)
+app = FastAPI(
+    title=config.APP_NAME,
+    version=config.APP_VERSION,
+    description="HWA Neuromorphic Dashboard API",
+    lifespan=lifespan
+)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -34,17 +60,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Static Files and Templates ---
+# --- Static Files ---
 app.mount("/static", StaticFiles(directory=config.STATIC_DIR), name="static")
-templates = Jinja2Templates(directory=config.TEMPLATES_DIR)
 
-# --- Pydantic Models ---
-class ConfigModel(BaseModel):
-    hostname: str = Field(..., max_length=255, pattern=r'^[a-zA-Z0-9.-]+$')
-    port: int = Field(..., ge=1, le=65535)
-    username: str
-    password: str | None = None
-    verify_ssl: bool = False
+# --- API Routers ---
+app.include_router(pages.router)
+app.include_router(api_config.router)
+app.include_router(hwa.router)
+app.include_router(websockets.router)
+app.include_router(monitoring.router)
 
 # --- Exception Handlers ---
 @app.exception_handler(Exception)
@@ -54,169 +78,3 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"error": "An unexpected internal server error occurred."},
     )
-
-# --- Services / Dependencies ---
-async def get_hwa_client():
-    """Dependency to provide an initialized HWAClient."""
-    if not config.CONFIG_FILE.exists():
-        raise HTTPException(status_code=404, detail="Configuration file not found.")
-    try:
-        async with HWAClient(config_path=str(config.CONFIG_FILE)) as client:
-            yield client
-    except Exception as e:
-        logging.error(f"Failed to create HWAClient: {e}")
-        raise HTTPException(status_code=500, detail="Could not connect to HWA.")
-
-def is_oql_query_safe(query: str) -> bool:
-    blocked_keywords = ['DELETE', 'UPDATE', 'INSERT', 'CARRYFORWARD', 'CANCEL', 'HOLD', 'RELEASE', 'RERUN', 'SUBMIT']
-    for keyword in blocked_keywords:
-        if re.search(r'\b' + keyword + r'\b', query, re.IGNORECASE):
-            logging.warning(f"Blocked OQL query with keyword: {keyword}")
-            return False
-    return True
-
-# --- HTML Routes ---
-@app.get("/", response_class=HTMLResponse)
-@limiter.limit("100/minute")
-async def index(request: Request):
-    try:
-        with open(config.LAYOUT_FILE, 'r', encoding='utf-8') as f:
-            layout_data = json.load(f)
-    except Exception:
-        layout_data = [{"type": "error", "message": "Could not load layout file."}]
-    return templates.TemplateResponse("index.html", {"request": request, "layout_data": layout_data})
-
-@app.get("/config", response_class=HTMLResponse)
-@limiter.limit("100/minute")
-async def config_page(request: Request):
-    return templates.TemplateResponse("config.html", {"request": request})
-
-@app.get("/dashboard_editor", response_class=HTMLResponse)
-@limiter.limit("100/minute")
-async def dashboard_editor_page(request: Request):
-    return templates.TemplateResponse("dashboard_editor.html", {"request": request})
-
-@app.get("/help", response_class=HTMLResponse)
-@limiter.limit("100/minute")
-async def help_page(request: Request):
-    return templates.TemplateResponse("help.html", {"request": request})
-
-@app.get("/oql_help", response_class=HTMLResponse)
-@limiter.limit("100/minute")
-async def oql_help_page(request: Request):
-    return templates.TemplateResponse("oql_help.html", {"request": request})
-
-# --- API Routes ---
-@app.get("/api/dashboard_data")
-@limiter.limit("120/minute")
-async def get_dashboard_data(request: Request, client: HWAClient = Depends(get_hwa_client)):
-    # Use ExceptionGroup in Python 3.11+ for concurrent tasks
-    try:
-        results = await asyncio.gather(
-            client.plan.query_job_streams(),
-            client.model.query_workstations()
-        )
-        all_job_streams, all_workstations = results
-    except Exception as e:
-        logging.error(f"Error fetching dashboard data: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch dashboard data.")
-
-    jobs_abend = [j for j in all_job_streams if j.get('status', '').lower() == 'abend']
-    jobs_running = [j for j in all_job_streams if j.get('status', '').lower() == 'exec']
-    return {
-        "abend_count": len(jobs_abend),
-        "running_count": len(jobs_running),
-        "total_job_stream_count": len(all_job_streams),
-        "total_workstation_count": len(all_workstations),
-        "job_streams": all_job_streams,
-        "workstations": all_workstations,
-        "jobs_abend": jobs_abend,
-        "jobs_running": jobs_running,
-    }
-
-@app.get("/api/oql")
-@limiter.limit("60/minute")
-async def execute_oql(request: Request, q: str, source: str = "plan", client: HWAClient = Depends(get_hwa_client)):
-    if not is_oql_query_safe(q):
-        raise HTTPException(status_code=400, detail="Query contains potentially harmful keywords.")
-
-    if source == "model":
-        return await client.model.execute_oql_query(q)
-    return await client.plan.execute_oql_query(q)
-
-async def _job_action_endpoint(action: str, plan_id: str, job_id: str, client: HWAClient):
-    action_map = {
-        "cancel": client.plan.cancel_job,
-        "rerun": client.plan.rerun_job,
-        "hold": client.plan.hold_job,
-        "release": client.plan.release_job,
-    }
-    if action not in action_map:
-        raise HTTPException(status_code=400, detail=f"Invalid action: {action}")
-
-    result = await action_map[action](job_id, plan_id)
-    return {"success": True, "message": f"'{action.capitalize()}' command sent.", "details": result}
-
-@app.put("/api/plan/{plan_id}/job/{job_id}/action/{action}")
-@limiter.limit("10/minute")
-async def job_action(request: Request, plan_id: str, job_id: str, action: str, client: HWAClient = Depends(get_hwa_client)):
-    return await _job_action_endpoint(action, plan_id, job_id, client)
-
-@app.get("/api/config")
-@limiter.limit("30/minute")
-async def get_config_api(request: Request):
-    config_parser = configparser.ConfigParser()
-    if config.CONFIG_FILE.exists():
-        config_parser.read(config.CONFIG_FILE)
-    settings = dict(config_parser['tws']) if 'tws' in config_parser else {}
-    if 'verify_ssl' in settings:
-        settings['verify_ssl'] = config_parser.getboolean('tws', 'verify_ssl')
-    return settings
-
-@app.post("/api/config")
-@limiter.limit("10/minute")
-async def save_config_api(request: Request, data: ConfigModel):
-    config_parser = configparser.ConfigParser()
-    if config.CONFIG_FILE.exists():
-        config_parser.read(config.CONFIG_FILE)
-    if 'tws' not in config_parser:
-        config_parser.add_section('tws')
-
-    config_parser.set('tws', 'hostname', data.hostname)
-    config_parser.set('tws', 'port', str(data.port))
-    config_parser.set('tws', 'username', data.username)
-    config_parser.set('tws', 'verify_ssl', 'true' if data.verify_ssl else 'false')
-
-    if data.password:
-        key = load_key()
-        encrypted_pass = encrypt_password(data.password, key)
-        config_parser.set('tws', 'password', encrypted_pass.decode('utf-8'))
-
-    os.makedirs(config.CONFIG_DIR, exist_ok=True)
-    with open(config.CONFIG_FILE, 'w') as f:
-        config_parser.write(f)
-    return {"success": "Configuration saved successfully."}
-
-@app.get("/api/dashboard_layout")
-@limiter.limit("30/minute")
-async def get_dashboard_layout(request: Request):
-    try:
-        with open(config.LAYOUT_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return []
-    except Exception:
-        raise
-
-@app.post("/api/dashboard_layout")
-@limiter.limit("10/minute")
-async def save_dashboard_layout(request: Request, new_layout: list[dict[str, Any]]):
-    with open(config.LAYOUT_FILE, 'w', encoding='utf-8') as f:
-        json.dump(new_layout, f, indent=4)
-    return {"success": True, "message": "Layout saved successfully."}
-
-@app.get("/health")
-@limiter.limit("120/minute")
-async def health_check(request: Request):
-    return {"status": "ok"}
-import asyncio
