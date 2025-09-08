@@ -1,10 +1,10 @@
 import logging
-import json
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from src.services.monitoring.websocket import ws_manager
 
 router = APIRouter()
+
 
 @router.websocket("/ws/monitoring/{user_id}")
 async def websocket_monitoring_endpoint(websocket: WebSocket, user_id: str):
@@ -30,5 +30,8 @@ async def websocket_monitoring_endpoint(websocket: WebSocket, user_id: str):
         logging.info(f"Client {user_id} disconnected.")
         await ws_manager.disconnect(websocket, user_id)
     except Exception as e:
-        logging.error(f"An error occurred in the WebSocket connection for {user_id}: {e}", exc_info=True)
+        logging.error(
+            f"An error occurred in the WebSocket connection for {user_id}: {e}",
+            exc_info=True,
+        )
         await ws_manager.disconnect(websocket, user_id)

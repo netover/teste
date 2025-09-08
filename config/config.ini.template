@@ -17,6 +17,10 @@ DATABASE_URL = sqlite+aiosqlite:///./hwa_dashboard.db
 # Redis connection URL for WebSocket Pub/Sub and Celery message broker.
 REDIS_URL = redis://localhost:6379
 
+[monitoring]
+# Comma-separated list of job statuses that should trigger a high-priority alert.
+critical_statuses = ABEND,ERROR,FAIL
+
 [security]
 # A secret key for securing administrative endpoints.
 API_KEY = 751e24913eb745baa5ee523065069a3e26cb04a862aba1904294a30dbc37545d

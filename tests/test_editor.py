@@ -1,55 +1,58 @@
 import sys
 import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import pytest
-from playwright.sync_api import Page, expect
 from main import main as run_main_app
 import time
 import json
 import multiprocessing
 import os
-import re
+
 
 # Fixture to run the main application in a background process
 def run_app():
     run_main_app()
 
+
 @pytest.fixture(scope="session", autouse=True)
 def live_server():
     server = multiprocessing.Process(target=run_app)
     server.start()
-    time.sleep(3) # Give server more time to start
+    time.sleep(3)  # Give server more time to start
     yield
     server.terminate()
     server.join()
+
 
 # Fixture to manage the dashboard_layout.json file for tests
 @pytest.fixture
 def layout_file_manager():
     original_layout = None
-    layout_path = 'dashboard_layout.json'
+    layout_path = "dashboard_layout.json"
 
     if os.path.exists(layout_path):
-        with open(layout_path, 'r') as f:
+        with open(layout_path, "r") as f:
             original_layout = f.read()
 
     # Start with a known layout for the test
     initial_layout = [
         {"id": "widget1", "type": "summary_count", "label": "Widget 1"},
-        {"id": "widget2", "type": "summary_count", "label": "Widget 2"}
+        {"id": "widget2", "type": "summary_count", "label": "Widget 2"},
     ]
-    with open(layout_path, 'w') as f:
+    with open(layout_path, "w") as f:
         json.dump(initial_layout, f)
 
     yield layout_path
 
     if original_layout:
-        with open(layout_path, 'w') as f:
+        with open(layout_path, "w") as f:
             f.write(original_layout)
     else:
         if os.path.exists(layout_path):
             os.remove(layout_path)
+
 
 #
 # def test_editor_functionality(page: Page, layout_file_manager):

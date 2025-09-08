@@ -9,12 +9,12 @@ load_dotenv()
 
 # --- Core Application Paths ---
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-CONFIG_DIR = BASE_DIR / 'config'
-CONFIG_FILE = CONFIG_DIR / 'config.ini'
-LAYOUT_FILE = BASE_DIR / 'dashboard_layout.json'
-STATIC_DIR = BASE_DIR / 'static'
-TEMPLATES_DIR = BASE_DIR / 'templates'
-ICON_FILE = BASE_DIR / 'icon.png'
+CONFIG_DIR = BASE_DIR / "config"
+CONFIG_FILE = CONFIG_DIR / "config.ini"
+LAYOUT_FILE = BASE_DIR / "dashboard_layout.json"
+STATIC_DIR = BASE_DIR / "static"
+TEMPLATES_DIR = BASE_DIR / "templates"
+ICON_FILE = BASE_DIR / "icon.png"
 
 # --- Application Metadata ---
 APP_NAME = "HWA Dashboard"
@@ -26,34 +26,45 @@ config.read(CONFIG_FILE)
 
 # --- Server Configuration ---
 # Load from environment variable first, then fallback to config file, then to a hardcoded default.
-SERVER_PORT = int(os.getenv('SERVER_PORT', config.get('server', 'PORT', fallback=63136)))
-SERVER_HOST = os.getenv('SERVER_HOST', config.get('server', 'HOST', fallback="0.0.0.0"))
+SERVER_PORT = int(
+    os.getenv("SERVER_PORT", config.get("server", "PORT", fallback=63136))
+)
+SERVER_HOST = os.getenv("SERVER_HOST", config.get("server", "HOST", fallback="0.0.0.0"))
 BASE_URL = f"http://localhost:{SERVER_PORT}"
 
 # --- HWA Connection Configuration ---
-HWA_HOSTNAME = os.getenv('HWA_HOSTNAME', config.get('tws', 'hostname', fallback=None))
-HWA_PORT = int(os.getenv('HWA_PORT', config.get('tws', 'port', fallback=31116)))
-HWA_USERNAME = os.getenv('HWA_USERNAME', config.get('tws', 'username', fallback=None))
-HWA_PASSWORD = os.getenv('HWA_PASSWORD', config.get('tws', 'password', fallback=None))
+HWA_HOSTNAME = os.getenv("HWA_HOSTNAME", config.get("tws", "hostname", fallback=None))
+HWA_PORT = int(os.getenv("HWA_PORT", config.get("tws", "port", fallback=31116)))
+HWA_USERNAME = os.getenv("HWA_USERNAME", config.get("tws", "username", fallback=None))
+HWA_PASSWORD = os.getenv("HWA_PASSWORD", config.get("tws", "password", fallback=None))
 
 # --- Database and Redis Configuration ---
 DATABASE_URL = os.getenv(
-    'DATABASE_URL',
-    config.get('database', 'DATABASE_URL', fallback='sqlite+aiosqlite:///./hwa_dashboard.db')
+    "DATABASE_URL",
+    config.get(
+        "database", "DATABASE_URL", fallback="sqlite+aiosqlite:///./hwa_dashboard.db"
+    ),
 )
 REDIS_URL = os.getenv(
-    'REDIS_URL',
-    config.get('redis', 'REDIS_URL', fallback='redis://localhost:6379')
+    "REDIS_URL", config.get("redis", "REDIS_URL", fallback="redis://localhost:6379")
 )
 
+# --- Monitoring Configuration ---
+_critical_statuses_str = config.get(
+    "monitoring", "critical_statuses", fallback="ABEND,ERROR,FAIL"
+)
+CRITICAL_STATUSES = [
+    status.strip().upper() for status in _critical_statuses_str.split(",")
+]
+
 # --- Security Configuration ---
-API_KEY = os.getenv('API_KEY', config.get('security', 'API_KEY', fallback=None))
-CORS_ALLOWED_ORIGINS = ["*"] # Consider making this configurable
+API_KEY = os.getenv("API_KEY", config.get("security", "API_KEY", fallback=None))
+CORS_ALLOWED_ORIGINS = ["*"]  # Consider making this configurable
 
 # --- Determine Application Path for Startup ---
 import sys
 
-if getattr(sys, 'frozen', False):
+if getattr(sys, "frozen", False):
     APP_PATH = sys.executable
 else:
-    APP_PATH = str(BASE_DIR / 'main.py')
+    APP_PATH = str(BASE_DIR / "main.py")

@@ -1,6 +1,6 @@
 import logging
-from fastapi import APIRouter, HTTPException, Body, Depends
-from typing import List, Dict, Any
+from fastapi import APIRouter, HTTPException, Depends
+from typing import Dict, Any
 from celery.result import AsyncResult
 
 from src.services.ml import models
@@ -13,6 +13,7 @@ router = APIRouter(
     prefix="/api/ml",
     tags=["Machine Learning"],
 )
+
 
 @router.post("/train", status_code=202, dependencies=[Depends(get_api_key)])
 def dispatch_model_training() -> Dict[str, str]:
@@ -28,6 +29,7 @@ def dispatch_model_training() -> Dict[str, str]:
         logging.error(f"Error dispatching training task: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to dispatch training task.")
 
+
 @router.get("/train/status/{task_id}", dependencies=[Depends(get_api_key)])
 def get_training_status(task_id: str) -> Dict[str, Any]:
     """
@@ -35,11 +37,7 @@ def get_training_status(task_id: str) -> Dict[str, Any]:
     """
     task_result = AsyncResult(task_id, app=train_all_models_task.app)
 
-    response = {
-        "task_id": task_id,
-        "status": task_result.status,
-        "result": None
-    }
+    response = {"task_id": task_id, "status": task_result.status, "result": None}
 
     if task_result.successful():
         response["result"] = task_result.get()
@@ -48,40 +46,34 @@ def get_training_status(task_id: str) -> Dict[str, Any]:
         # We should return a serializable representation of it.
         response["result"] = {
             "error": str(task_result.result),
-            "traceback": task_result.traceback
+            "traceback": task_result.traceback,
         }
 
     return response
 
 
 @router.post("/predict/failure", response_model=models.JobFailurePrediction)
-def predict_job_failure(
-    job_data: Dict = Body(
-        ...,
-        example={
-            "jobStreamName": "CRITICAL_JOB_01",
-            "avg_runtime": 450,
-            "runtime_variance": 100,
-            "failure_rate_7d": 0.3,
-            "workstation_load": 0.85,
-            "consecutive_failures": 2,
-            "sla_breach_history": 4
-        }
-    )
-):
+def predict_job_failure(job_data: models.JobPredictionRequest):
     """
     Predicts the failure probability for a given job's real-time data.
     """
     try:
-        prediction = job_predictor.predict_job_failure(job_data)
+        # The service expects a dict, so we convert the Pydantic model
+        prediction = job_predictor.predict_job_failure(job_data.dict())
         return prediction
     except RuntimeError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logging.error(f"Error during failure prediction: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An error occurred during prediction.")
+        raise HTTPException(
+            status_code=500, detail="An error occurred during prediction."
+        )
 
-@router.get("/forecast/workload/{workstation_name}", response_model=models.WorkstationForecastResponse)
+
+@router.get(
+    "/forecast/workload/{workstation_name}",
+    response_model=models.WorkstationForecastResponse,
+)
 def get_workload_forecast(workstation_name: str, days_ahead: int = 7):
     """
     Generates a workload forecast for a given workstation.
@@ -94,4 +86,6 @@ def get_workload_forecast(workstation_name: str, days_ahead: int = 7):
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logging.error(f"Error during workload forecasting: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An error occurred during forecasting.")
+        raise HTTPException(
+            status_code=500, detail="An error occurred during forecasting."
+        )

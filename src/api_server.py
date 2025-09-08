@@ -2,6 +2,7 @@ import logging
 import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
+from tenacity import retry, stop_after_attempt, wait_fixed, before_sleep_log
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,13 +16,33 @@ from src.services.monitoring.websocket import ws_manager
 from src.services.monitoring.job_monitor import job_monitor
 
 # --- Lifespan Management for Background Tasks ---
+
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_fixed(3),
+    before_sleep=before_sleep_log(logging.getLogger(__name__), logging.INFO),
+)
+async def _initialize_services():
+    """Helper function to initialize services with retry logic."""
+    logging.info("Attempting to initialize services...")
+    await ws_manager.initialize()
+    await job_monitor.initialize()
+    logging.info("Services initialized successfully.")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     logging.info("Application startup...")
-    # Initialize services
-    await ws_manager.initialize()
-    await job_monitor.initialize()
+    try:
+        await _initialize_services()
+    except Exception as e:
+        logging.critical(
+            f"Services failed to initialize after multiple retries: {e}", exc_info=True
+        )
+        # Depending on the desired behavior, you might want to exit the app here.
+        # For now, we'll log a critical error and the app will start with reduced functionality.
 
     # Start background tasks
     pubsub_task = asyncio.create_task(ws_manager.subscribe_to_updates())
@@ -40,13 +61,14 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         logging.info("Background tasks cancelled successfully.")
 
+
 # --- App Setup ---
 limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(
     title=config.APP_NAME,
     version=config.APP_VERSION,
     description="HWA Neuromorphic Dashboard API",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -71,10 +93,13 @@ app.include_router(websockets.router)
 app.include_router(monitoring.router)
 app.include_router(ml.router)
 
+
 # --- Exception Handlers ---
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logging.error(f"Unhandled exception for request {request.url}: {exc}", exc_info=True)
+    logging.error(
+        f"Unhandled exception for request {request.url}: {exc}", exc_info=True
+    )
     return JSONResponse(
         status_code=500,
         content={"error": "An unexpected internal server error occurred."},

@@ -14,12 +14,12 @@ dependencies = [
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
     "httpx>=0.25.0",
-    
+
     # WebSockets & Real-time
     "fastapi-websocket-pubsub>=0.3.0",
     "redis>=5.0.0",
     "celery[redis]>=5.3.0",
-    
+
     # Machine Learning & Analytics
     "scikit-learn>=1.3.0",
     "pandas>=2.1.0",
@@ -27,23 +27,23 @@ dependencies = [
     "matplotlib>=3.7.0",
     "seaborn>=0.12.0",
     "joblib>=1.3.0",
-    
+
     # NLP & AI
     "openai>=1.3.0",
     "langchain>=0.0.340",
     "tiktoken>=0.5.0",
     "sentence-transformers>=2.2.0",
     "faiss-cpu>=1.7.4",
-    
+
     # Time Series & Forecasting
     "prophet>=1.1.0",
     "statsmodels>=0.14.0",
-    
+
     # Database & Storage
     "sqlalchemy>=2.0.0",
     "alembic>=1.12.0",
     "psycopg2-binary>=2.9.0",  # PostgreSQL
-    
+
     # Monitoring & Observability
     "prometheus-client>=0.18.0",
     "grafana-api>=1.0.3",
@@ -54,7 +54,7 @@ dev = [
     # Existing dev deps
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
-    
+
     # ML Development
     "jupyter>=1.0.0",
     "mlflow>=2.7.0",
@@ -130,14 +130,14 @@ class WebSocketManager:
         # Active connections by user/session
         self.active_connections: Dict[str, Set[WebSocket]] = {}
         self.redis_client: redis.Redis = None
-        
+
     async def initialize(self):
         """Initialize Redis connection for pub/sub"""
         self.redis_client = await redis.from_url(
-            "redis://localhost:6379", 
+            "redis://localhost:6379",
             decode_responses=True
         )
-        
+
     async def connect(self, websocket: WebSocket, user_id: str):
         """Accept WebSocket connection and add to active connections"""
         await websocket.accept()
@@ -145,7 +145,7 @@ class WebSocketManager:
             self.active_connections[user_id] = set()
         self.active_connections[user_id].add(websocket)
         logging.info(f"WebSocket connected for user: {user_id}")
-        
+
     async def disconnect(self, websocket: WebSocket, user_id: str):
         """Remove WebSocket connection"""
         if user_id in self.active_connections:
@@ -153,7 +153,7 @@ class WebSocketManager:
             if not self.active_connections[user_id]:
                 del self.active_connections[user_id]
         logging.info(f"WebSocket disconnected for user: {user_id}")
-        
+
     async def send_personal_message(self, message: dict, user_id: str):
         """Send message to specific user's connections"""
         if user_id in self.active_connections:
@@ -163,21 +163,21 @@ class WebSocketManager:
                     await websocket.send_json(message)
                 except:
                     disconnected.append(websocket)
-            
+
             # Clean up disconnected sockets
             for ws in disconnected:
                 await self.disconnect(ws, user_id)
-                
+
     async def broadcast(self, message: dict):
         """Broadcast message to all connected clients"""
         for user_id in list(self.active_connections.keys()):
             await self.send_personal_message(message, user_id)
-            
+
     async def subscribe_to_updates(self):
         """Subscribe to Redis pub/sub for real-time updates"""
         pubsub = self.redis_client.pubsub()
         await pubsub.subscribe("job_updates", "alert_notifications")
-        
+
         async for message in pubsub.listen():
             if message["type"] == "message":
                 try:
@@ -218,19 +218,19 @@ class JobMonitoringService:
         self.monitoring_active = False
         self.poll_interval = 30  # seconds
         self.job_cache: Dict[str, dict] = {}
-        
+
     async def initialize(self):
         """Initialize monitoring service"""
         self.redis_client = await redis.from_url(
             "redis://localhost:6379",
             decode_responses=True
         )
-        
+
     async def start_monitoring(self):
         """Start continuous job monitoring"""
         self.monitoring_active = True
         logging.info("Job monitoring service started")
-        
+
         while self.monitoring_active:
             try:
                 await self._poll_job_status()
@@ -238,35 +238,35 @@ class JobMonitoringService:
             except Exception as e:
                 logging.error(f"Error in monitoring loop: {e}")
                 await asyncio.sleep(5)  # Short delay on error
-                
+
     async def stop_monitoring(self):
         """Stop monitoring service"""
         self.monitoring_active = False
         logging.info("Job monitoring service stopped")
-        
+
     async def _poll_job_status(self):
         """Poll HWA for current job status"""
         async with HWAClient() as client:
             # Get current job streams
             current_jobs = await client.plan.query_job_streams()
-            
+
             # Process each job for changes
             for job in current_jobs:
                 await self._process_job_update(job)
-                
+
             # Update cache
             self.job_cache = {job['jobStreamName']: job for job in current_jobs}
-            
+
     async def _process_job_update(self, job_data: dict):
         """Process individual job for status changes"""
         job_name = job_data.get('jobStreamName')
         current_status = job_data.get('status', 'UNKNOWN')
-        
+
         # Check if this is a status change
         if job_name in self.job_cache:
             old_job = self.job_cache[job_name]
             old_status = old_job.get('status', 'UNKNOWN')
-            
+
             if old_status != current_status:
                 # Status changed - create event
                 event = JobStatusEvent(
@@ -277,7 +277,7 @@ class JobMonitoringService:
                     workstation=job_data.get('workstationName', ''),
                     timestamp=datetime.now()
                 )
-                
+
                 await self._handle_status_change(event)
         else:
             # New job discovered
@@ -289,33 +289,33 @@ class JobMonitoringService:
                 workstation=job_data.get('workstationName', ''),
                 timestamp=datetime.now()
             )
-            
+
             await self._handle_status_change(event)
-            
+
     async def _handle_status_change(self, event: JobStatusEvent):
         """Handle job status change event"""
         logging.info(f"Job status change: {event.job_name} {event.old_status} → {event.new_status}")
-        
+
         # Store in database
         await self._store_status_history(event)
-        
+
         # Check alert rules
         await self._check_alert_rules(event)
-        
+
         # Publish real-time update
         await self._publish_realtime_update(event)
-        
+
     async def _store_status_history(self, event: JobStatusEvent):
         """Store job status change in database"""
         # Implementation depends on your database setup
         # This would use SQLAlchemy to store the event
         pass
-        
+
     async def _check_alert_rules(self, event: JobStatusEvent):
         """Check if status change triggers any alert rules"""
         # Critical status changes that need immediate attention
         critical_statuses = ['ABEND', 'ERROR', 'FAIL']
-        
+
         if event.new_status in critical_statuses:
             alert_data = {
                 "type": "job_failure",
@@ -326,9 +326,9 @@ class JobMonitoringService:
                 "timestamp": event.timestamp.isoformat(),
                 "message": f"Job {event.job_name} failed with status {event.new_status}"
             }
-            
+
             await self._send_alert(alert_data)
-            
+
     async def _send_alert(self, alert_data: dict):
         """Send alert notification"""
         # Publish to Redis for real-time notifications
@@ -336,10 +336,10 @@ class JobMonitoringService:
             "alert_notifications",
             json.dumps(alert_data)
         )
-        
+
         # Could also send to external systems (Slack, email, etc.)
         logging.warning(f"ALERT: {alert_data['message']}")
-        
+
     async def _publish_realtime_update(self, event: JobStatusEvent):
         """Publish real-time update via WebSocket"""
         update_data = {
@@ -353,7 +353,7 @@ class JobMonitoringService:
                 "timestamp": event.timestamp.isoformat()
             }
         }
-        
+
         await self.redis_client.publish(
             "job_updates",
             json.dumps(update_data)
@@ -374,12 +374,12 @@ router = APIRouter()
 async def websocket_monitoring_endpoint(websocket: WebSocket, user_id: str):
     """WebSocket endpoint for real-time monitoring updates"""
     await ws_manager.connect(websocket, user_id)
-    
+
     try:
         while True:
             # Keep connection alive and handle any incoming messages
             data = await websocket.receive_text()
-            
+
             # Handle client messages (e.g., subscription preferences)
             try:
                 message = json.loads(data)
@@ -388,7 +388,7 @@ async def websocket_monitoring_endpoint(websocket: WebSocket, user_id: str):
                     pass
             except json.JSONDecodeError:
                 pass
-                
+
     except WebSocketDisconnect:
         await ws_manager.disconnect(websocket, user_id)
     except Exception as e:
@@ -419,27 +419,27 @@ class JobFailurePredictorML:
             'workstation_load', 'time_of_day', 'day_of_week',
             'consecutive_failures', 'sla_breach_history'
         ]
-        
+
     async def train_failure_prediction_model(self, historical_data: pd.DataFrame):
         """Train ML model to predict job failures"""
         logging.info("Training job failure prediction model...")
-        
+
         # Feature engineering
         features_df = await self._engineer_features(historical_data)
-        
+
         # Prepare training data
         X = features_df[self.feature_columns]
         y = features_df['failed']  # Binary: 0=success, 1=failure
-        
+
         # Split data
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, random_state=42, stratify=y
         )
-        
+
         # Scale features
         X_train_scaled = self.scaler.fit_transform(X_train)
         X_test_scaled = self.scaler.transform(X_test)
-        
+
         # Train Random Forest model
         self.failure_model = RandomForestClassifier(
             n_estimators=100,
@@ -447,17 +447,17 @@ class JobFailurePredictorML:
             random_state=42,
             class_weight='balanced'  # Handle imbalanced data
         )
-        
+
         self.failure_model.fit(X_train_scaled, y_train)
-        
+
         # Evaluate model
         y_pred = self.failure_model.predict(X_test_scaled)
         report = classification_report(y_test, y_pred)
         logging.info(f"Model performance:\n{report}")
-        
+
         # Save model
         self._save_model()
-        
+
         return {
             "accuracy": self.failure_model.score(X_test_scaled, y_test),
             "feature_importance": dict(zip(
@@ -465,26 +465,26 @@ class JobFailurePredictorML:
                 self.failure_model.feature_importances_
             ))
         }
-        
+
     async def predict_job_failure(self, job_data: dict) -> dict:
         """Predict probability of job failure"""
         if not self.failure_model:
             await self._load_model()
-            
+
         # Extract features for this job
         features = await self._extract_job_features(job_data)
         features_scaled = self.scaler.transform([features])
-        
+
         # Get prediction
         failure_prob = self.failure_model.predict_proba(features_scaled)[0][1]
         prediction = self.failure_model.predict(features_scaled)[0]
-        
+
         # Get feature contributions (SHAP-like explanation)
         feature_importance = dict(zip(
             self.feature_columns,
             self.failure_model.feature_importances_
         ))
-        
+
         return {
             "job_name": job_data.get("jobStreamName"),
             "failure_probability": float(failure_prob),
@@ -493,21 +493,21 @@ class JobFailurePredictorML:
             "risk_factors": self._identify_risk_factors(features, feature_importance),
             "recommendation": self._get_recommendation(failure_prob)
         }
-        
+
     async def detect_anomalies(self, recent_jobs: list) -> list:
         """Detect anomalous job behavior patterns"""
         if not self.anomaly_detector:
             await self._train_anomaly_detector()
-            
+
         anomalies = []
-        
+
         for job in recent_jobs:
             features = await self._extract_job_features(job)
             features_scaled = self.scaler.transform([features])
-            
+
             # -1 for outliers, 1 for inliers
             is_anomaly = self.anomaly_detector.predict(features_scaled)[0] == -1
-            
+
             if is_anomaly:
                 anomaly_score = self.anomaly_detector.score_samples(features_scaled)[0]
                 anomalies.append({
@@ -516,40 +516,40 @@ class JobFailurePredictorML:
                     "anomaly_type": self._classify_anomaly_type(features),
                     "description": self._describe_anomaly(job, features)
                 })
-                
+
         return anomalies
-        
+
     async def _engineer_features(self, historical_data: pd.DataFrame) -> pd.DataFrame:
         """Engineer features from raw historical data"""
         # Convert datetime columns
         historical_data['timestamp'] = pd.to_datetime(historical_data['timestamp'])
-        
+
         # Time-based features
         historical_data['hour'] = historical_data['timestamp'].dt.hour
         historical_data['day_of_week'] = historical_data['timestamp'].dt.dayofweek
         historical_data['time_of_day'] = historical_data['hour'] / 24.0
-        
+
         # Job performance features
         job_stats = historical_data.groupby('job_name').agg({
             'runtime_seconds': ['mean', 'std'],
             'failed': ['mean', 'sum']
         }).round(2)
-        
+
         job_stats.columns = ['avg_runtime', 'runtime_variance', 'failure_rate_7d', 'total_failures']
-        
+
         # Merge back to original data
         features_df = historical_data.merge(
-            job_stats, 
-            left_on='job_name', 
-            right_index=True, 
+            job_stats,
+            left_on='job_name',
+            right_index=True,
             how='left'
         )
-        
+
         # Fill missing values
         features_df = features_df.fillna(0)
-        
+
         return features_df
-        
+
     async def _extract_job_features(self, job_data: dict) -> list:
         """Extract features from current job data"""
         # This would extract real-time features based on job_data
@@ -564,11 +564,11 @@ class JobFailurePredictorML:
             job_data.get('consecutive_failures', 0), # consecutive failures
             job_data.get('sla_breach_history', 0)   # SLA breach history
         ]
-        
+
     def _identify_risk_factors(self, features: list, importance: dict) -> list:
         """Identify main risk factors for this prediction"""
         risk_factors = []
-        
+
         for i, (feature_name, feature_value) in enumerate(zip(self.feature_columns, features)):
             if importance[feature_name] > 0.1:  # High importance threshold
                 risk_factors.append({
@@ -577,9 +577,9 @@ class JobFailurePredictorML:
                     "importance": importance[feature_name],
                     "description": self._get_factor_description(feature_name, feature_value)
                 })
-                
+
         return sorted(risk_factors, key=lambda x: x['importance'], reverse=True)
-        
+
     def _get_recommendation(self, failure_prob: float) -> str:
         """Get recommendation based on failure probability"""
         if failure_prob > 0.8:
@@ -590,12 +590,12 @@ class JobFailurePredictorML:
             return "MEDIUM RISK: Review job dependencies and resource availability"
         else:
             return "LOW RISK: Job expected to complete successfully"
-            
+
     def _save_model(self):
         """Save trained models to disk"""
         joblib.dump(self.failure_model, 'models/failure_predictor.joblib')
         joblib.dump(self.scaler, 'models/feature_scaler.joblib')
-        
+
     async def _load_model(self):
         """Load trained models from disk"""
         try:
@@ -617,61 +617,61 @@ import logging
 class WorkloadForecaster:
     def __init__(self):
         self.models = {}  # Store models by workstation/job type
-        
+
     async def train_workload_forecast(self, historical_data: pd.DataFrame):
         """Train Prophet models for workload forecasting"""
         logging.info("Training workload forecasting models...")
-        
+
         # Group by workstation for individual forecasting
         for workstation in historical_data['workstation'].unique():
             ws_data = historical_data[historical_data['workstation'] == workstation]
-            
+
             # Prepare data for Prophet (needs 'ds' and 'y' columns)
             prophet_data = ws_data.groupby('date').agg({
                 'job_count': 'sum',
                 'total_runtime': 'sum',
                 'cpu_usage': 'mean'
             }).reset_index()
-            
+
             # Train separate models for different metrics
             for metric in ['job_count', 'total_runtime', 'cpu_usage']:
                 model_data = prophet_data[['date', metric]].rename(
                     columns={'date': 'ds', metric: 'y'}
                 )
-                
+
                 model = Prophet(
                     yearly_seasonality=True,
                     weekly_seasonality=True,
                     daily_seasonality=True,
                     changepoint_prior_scale=0.05
                 )
-                
+
                 model.fit(model_data)
                 self.models[f"{workstation}_{metric}"] = model
-                
+
     async def forecast_workload(self, workstation: str, days_ahead: int = 7) -> dict:
         """Generate workload forecast for specific workstation"""
         forecasts = {}
-        
+
         for metric in ['job_count', 'total_runtime', 'cpu_usage']:
             model_key = f"{workstation}_{metric}"
-            
+
             if model_key in self.models:
                 model = self.models[model_key]
-                
+
                 # Create future dataframe
                 future = model.make_future_dataframe(periods=days_ahead)
                 forecast = model.predict(future)
-                
+
                 # Extract forecast for requested period
                 future_forecast = forecast.tail(days_ahead)
-                
+
                 forecasts[metric] = {
                     "predictions": future_forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].to_dict('records'),
                     "trend": "increasing" if forecast['trend'].iloc[-1] > forecast['trend'].iloc[-7] else "decreasing",
                     "seasonality_strength": float(forecast[['weekly', 'yearly']].abs().mean().mean())
                 }
-                
+
         return {
             "workstation": workstation,
             "forecast_period": f"{days_ahead} days",
@@ -679,7 +679,7 @@ class WorkloadForecaster:
             "forecasts": forecasts
         }
 
-# Global forecaster instance  
+# Global forecaster instance
 workload_forecaster = WorkloadForecaster()
 🤖 FASE 3: NLP ASSISTANT
 3.1 Knowledge Base & Embeddings
@@ -698,13 +698,13 @@ class HWAKnowledgeBase:
         self.knowledge_index = None
         self.knowledge_docs = []
         self.doc_embeddings = None
-        
+
     async def initialize(self):
         """Initialize knowledge base with HWA/TWS documentation"""
         # Load HWA/TWS knowledge base
         await self._load_knowledge_base()
         await self._build_embeddings_index()
-        
+
     async def _load_knowledge_base(self):
         """Load HWA/TWS knowledge documents"""
         # This would load from your documentation/knowledge base
@@ -739,34 +739,34 @@ class HWAKnowledgeBase:
             }
             # Add more knowledge base entries...
         ]
-        
+
     async def _build_embeddings_index(self):
         """Build FAISS index for semantic search"""
         logging.info("Building knowledge base embeddings index...")
-        
+
         # Create embeddings for all documents
         doc_texts = [doc["content"] for doc in self.knowledge_docs]
         self.doc_embeddings = self.embedding_model.encode(doc_texts)
-        
+
         # Build FAISS index
         dimension = self.doc_embeddings.shape[1]
         self.knowledge_index = faiss.IndexFlatIP(dimension)  # Inner product for similarity
-        
+
         # Normalize embeddings for cosine similarity
         faiss.normalize_L2(self.doc_embeddings)
         self.knowledge_index.add(self.doc_embeddings)
-        
+
         logging.info(f"Knowledge base index built with {len(self.knowledge_docs)} documents")
-        
+
     async def search_knowledge(self, query: str, top_k: int = 3) -> List[Dict]:
         """Search knowledge base using semantic similarity"""
         # Encode query
         query_embedding = self.embedding_model.encode([query])
         faiss.normalize_L2(query_embedding)
-        
+
         # Search index
         scores, indices = self.knowledge_index.search(query_embedding, top_k)
-        
+
         results = []
         for i, (score, idx) in enumerate(zip(scores[0], indices[0])):
             if idx != -1:  # Valid result
@@ -776,26 +776,26 @@ class HWAKnowledgeBase:
                     "relevance_score": float(score),
                     "rank": i + 1
                 })
-                
+
         return results
-        
+
     async def get_context_for_query(self, query: str, max_context_length: int = 2000) -> str:
         """Get relevant context for answering a query"""
         search_results = await self.search_knowledge(query, top_k=5)
-        
+
         context_parts = []
         current_length = 0
-        
+
         for result in search_results:
             doc = result["document"]
             content = f"Title: {doc['title']}\nContent: {doc['content']}\n\n"
-            
+
             if current_length + len(content) <= max_context_length:
                 context_parts.append(content)
                 current_length += len(content)
             else:
                 break
-                
+
         return "".join(context_parts)
 
 # Global knowledge base instance
@@ -815,58 +815,58 @@ class HWAAssistant:
     def __init__(self):
         self.conversation_history = {}
         self.system_prompt = """
-        You are an expert HCL Workload Automation (HWA/TWS) operations assistant. 
+        You are an expert HCL Workload Automation (HWA/TWS) operations assistant.
         You help operators monitor jobs, troubleshoot issues, and optimize workloads.
-        
+
         Your capabilities:
         - Analyze job statuses and performance
         - Provide troubleshooting guidance
         - Explain HWA/TWS concepts
         - Suggest optimization strategies
         - Help with operational procedures
-        
+
         Always provide practical, actionable advice based on current system state.
         Use the provided context from the knowledge base and current system data.
         """
-        
+
     async def chat(self, user_id: str, message: str) -> Dict:
         """Process user message and generate response"""
         logging.info(f"Processing message from user {user_id}: {message}")
-        
+
         # Get conversation history
         if user_id not in self.conversation_history:
             self.conversation_history[user_id] = []
-            
+
         # Add user message to history
         self.conversation_history[user_id].append({
             "role": "user",
             "content": message,
             "timestamp": datetime.now().isoformat()
         })
-        
+
         # Analyze message intent
         intent = await self._analyze_intent(message)
-        
+
         # Get relevant context
         context = await self._gather_context(message, intent)
-        
+
         # Generate response
         response = await self._generate_response(user_id, message, context, intent)
-        
+
         # Add assistant response to history
         self.conversation_history[user_id].append({
-            "role": "assistant", 
+            "role": "assistant",
             "content": response["text"],
             "timestamp": datetime.now().isoformat()
         })
-        
+
         return response
-        
+
     async def _analyze_intent(self, message: str) -> Dict:
         """Analyze user message intent"""
         # Simple intent classification (could use ML model)
         message_lower = message.lower()
-        
+
         if any(word in message_lower for word in ["status", "job", "running", "failed"]):
             return {"category": "job_status", "action": "query"}
         elif any(word in message_lower for word in ["error", "abend", "failed", "problem"]):
@@ -877,7 +877,7 @@ class HWAAssistant:
             return {"category": "job_action", "action": "execute"}
         else:
             return {"category": "general", "action": "assist"}
-            
+
     async def _gather_context(self, message: str, intent: Dict) -> Dict:
         """Gather relevant context for response generation"""
         context = {
@@ -885,11 +885,11 @@ class HWAAssistant:
             "current_system_state": {},
             "relevant_jobs": []
         }
-        
+
         # Get knowledge base context
         kb_context = await hwa_kb.get_context_for_query(message)
         context["knowledge_base"] = kb_context
-        
+
         # Get current system state if relevant
         if intent["category"] in ["job_status", "troubleshooting"]:
             try:
@@ -897,7 +897,7 @@ class HWAAssistant:
                     # Get current jobs
                     jobs = await client.plan.query_job_streams()
                     workstations = await client.model.query_workstations()
-                    
+
                     context["current_system_state"] = {
                         "total_jobs": len(jobs),
                         "running_jobs": len([j for j in jobs if j.get('status') == 'EXEC']),
@@ -905,19 +905,19 @@ class HWAAssistant:
                         "workstations": len(workstations),
                         "online_workstations": len([w for w in workstations if w.get('status') == 'LINK'])
                     }
-                    
+
                     # Find relevant jobs mentioned in message
                     context["relevant_jobs"] = [
-                        job for job in jobs 
-                        if any(keyword in job.get('jobStreamName', '').lower() 
+                        job for job in jobs
+                        if any(keyword in job.get('jobStreamName', '').lower()
                               for keyword in message.lower().split())
                     ]
-                    
+
             except Exception as e:
                 logging.error(f"Error getting system context: {e}")
-                
+
         return context
-        
+
     async def _generate_response(self, user_id: str, message: str, context: Dict, intent: Dict) -> Dict:
         """Generate response using OpenAI"""
         try:
@@ -925,26 +925,26 @@ class HWAAssistant:
             messages = [
                 {"role": "system", "content": self.system_prompt}
             ]
-            
+
             # Add context if available
             if context["knowledge_base"]:
                 context_message = f"Relevant HWA/TWS Knowledge:\n{context['knowledge_base']}"
                 messages.append({"role": "system", "content": context_message})
-                
+
             if context["current_system_state"]:
                 state_message = f"Current System State:\n{json.dumps(context['current_system_state'], indent=2)}"
                 messages.append({"role": "system", "content": state_message})
-                
+
             # Add recent conversation history
             recent_history = self.conversation_history[user_id][-6:]  # Last 3 exchanges
             messages.extend([
-                {"role": msg["role"], "content": msg["content"]} 
+                {"role": msg["role"], "content": msg["content"]}
                 for msg in recent_history[:-1]  # Exclude current message
             ])
-            
+
             # Add current message
             messages.append({"role": "user", "content": message})
-            
+
             # Generate response
             response = await openai.ChatCompletion.acreate(
                 model="gpt-4",
@@ -953,12 +953,12 @@ class HWAAssistant:
                 max_tokens=500,
                 presence_penalty=0.1
             )
-            
+
             response_text = response.choices[0].message.content.strip()
-            
+
             # Check if response suggests actions
             suggested_actions = await self._extract_suggested_actions(response_text, intent)
-            
+
             return {
                 "text": response_text,
                 "intent": intent,
@@ -966,7 +966,7 @@ class HWAAssistant:
                 "context_used": bool(context["knowledge_base"] or context["current_system_state"]),
                 "timestamp": datetime.now().isoformat()
             }
-            
+
         except Exception as e:
             logging.error(f"Error generating response: {e}")
             return {
@@ -976,15 +976,15 @@ class HWAAssistant:
                 "error": str(e),
                 "timestamp": datetime.now().isoformat()
             }
-            
+
     async def _extract_suggested_actions(self, response_text: str, intent: Dict) -> List[Dict]:
         """Extract actionable items from response"""
         actions = []
-        
+
         if intent["category"] == "job_action":
             # Parse potential job actions from response
             response_lower = response_text.lower()
-            
+
             if "cancel" in response_lower:
                 actions.append({"type": "job_action", "action": "cancel", "description": "Cancel job"})
             if "hold" in response_lower:
@@ -993,35 +993,35 @@ class HWAAssistant:
                 actions.append({"type": "job_action", "action": "release", "description": "Release job"})
             if "rerun" in response_lower:
                 actions.append({"type": "job_action", "action": "rerun", "description": "Rerun job"})
-                
+
         elif intent["category"] == "troubleshooting":
             actions.append({"type": "view_logs", "description": "View job logs for detailed error information"})
             actions.append({"type": "check_dependencies", "description": "Check job dependencies"})
-            
+
         return actions
-        
+
     async def get_conversation_summary(self, user_id: str) -> Dict:
         """Get summary of conversation for user"""
         if user_id not in self.conversation_history:
             return {"message": "No conversation history found"}
-            
+
         history = self.conversation_history[user_id]
-        
+
         return {
             "total_messages": len(history),
             "conversation_start": history[0]["timestamp"] if history else None,
             "last_interaction": history[-1]["timestamp"] if history else None,
             "recent_topics": await self._extract_topics(history[-10:])  # Last 10 messages
         }
-        
+
     async def _extract_topics(self, messages: List[Dict]) -> List[str]:
         """Extract main topics from conversation"""
         # Simple keyword extraction (could use more sophisticated NLP)
         topics = set()
-        
+
         for msg in messages:
             content = msg["content"].lower()
-            
+
             if any(word in content for word in ["job", "status", "running", "failed"]):
                 topics.add("job_monitoring")
             if any(word in content for word in ["error", "abend", "problem", "troubleshoot"]):
@@ -1030,7 +1030,7 @@ class HWAAssistant:
                 topics.add("resource_management")
             if any(word in content for word in ["schedule", "dependency", "plan"]):
                 topics.add("scheduling")
-                
+
         return list(topics)
 
 # Global assistant instance
@@ -1059,7 +1059,7 @@ class ChatResponse(BaseModel):
 async def chat_with_assistant(chat_msg: ChatMessage):
     """Chat with HWA assistant"""
     response = await hwa_assistant.chat(chat_msg.user_id, chat_msg.message)
-    
+
     return ChatResponse(
         response=response["text"],
         suggested_actions=response["suggested_actions"],
@@ -1088,34 +1088,34 @@ class RealtimeMonitoring {
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
     }
-    
+
     connect() {
         const wsUrl = `ws://localhost:63136/ws/monitoring/${this.userId}`;
         this.socket = new WebSocket(wsUrl);
-        
+
         this.socket.onopen = () => {
             console.log('WebSocket connected');
             this.reconnectAttempts = 0;
             this.showConnectionStatus('connected');
         };
-        
+
         this.socket.onmessage = (event) => {
             const data = JSON.parse(event.data);
             this.handleRealtimeUpdate(data);
         };
-        
+
         this.socket.onclose = () => {
             console.log('WebSocket disconnected');
             this.showConnectionStatus('disconnected');
             this.attemptReconnect();
         };
-        
+
         this.socket.onerror = (error) => {
             console.error('WebSocket error:', error);
             this.showConnectionStatus('error');
         };
     }
-    
+
     handleRealtimeUpdate(data) {
         switch(data.type) {
             case 'job_status_update':
@@ -1129,7 +1129,7 @@ class RealtimeMonitoring {
                 break;
         }
     }
-    
+
     updateJobStatus(jobData) {
         // Update job status in real-time
         const jobCard = document.querySelector(`[data-job-id="${jobData.job_id}"]`);
@@ -1137,13 +1137,13 @@ class RealtimeMonitoring {
             const statusElement = jobCard.querySelector('.job-status');
             statusElement.textContent = jobData.new_status;
             statusElement.className = `job-status status-${jobData.new_status.toLowerCase()}`;
-            
+
             // Add animation for status change
             jobCard.classList.add('status-changed');
             setTimeout(() => jobCard.classList.remove('status-changed'), 2000);
         }
     }
-    
+
     showAlert(alertData) {
         // Show real-time alert
         const alertHtml = `
@@ -1154,7 +1154,7 @@ class RealtimeMonitoring {
                 </button>
             </div>
         `;
-        
+
         document.getElementById('alerts-container').insertAdjacentHTML('afterbegin', alertHtml);
     }
 }

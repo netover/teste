@@ -8,6 +8,7 @@ from src.services.ml.predictor import job_predictor
 from src.services.ml.forecasting import workload_forecaster
 from src.services.ml.models import TrainingMetrics
 
+
 class ModelTrainingService:
     """
     A service to orchestrate the training of all machine learning models.
@@ -24,9 +25,7 @@ class ModelTrainingService:
         failure_metrics = self.trigger_failure_prediction_training()
         self.trigger_workload_forecasting_training()
         logging.info("All model training processes triggered.")
-        return {
-            "failure_predictor": failure_metrics
-        }
+        return {"failure_predictor": failure_metrics}
 
     def trigger_failure_prediction_training(self) -> TrainingMetrics:
         """
@@ -49,29 +48,32 @@ class ModelTrainingService:
 
         workload_forecaster.train_workload_forecast(historical_data)
 
-
     def _generate_mock_job_history(self, days: int, num_jobs: int) -> pd.DataFrame:
         """Generates a Pandas DataFrame of fake job history."""
         data = []
         job_names = [f"JOB_{chr(65+i)}" for i in range(num_jobs)]
         end_date = datetime.now()
 
-        for i in range(days * num_jobs * 2): # More data points
+        for i in range(days * num_jobs * 2):  # More data points
             job_name = np.random.choice(job_names)
             timestamp = end_date - timedelta(days=np.random.uniform(0, days))
-            status = np.random.choice(['SUCCESS', 'ABEND'], p=[0.9, 0.1])
+            status = np.random.choice(["SUCCESS", "ABEND"], p=[0.9, 0.1])
 
-            data.append({
-                "timestamp": timestamp,
-                "job_name": job_name,
-                "failed": 1 if status == 'ABEND' else 0,
-                "avg_runtime": np.random.normal(300, 50),
-                "runtime_variance": np.random.normal(20, 5),
-                "failure_rate_7d": np.random.uniform(0, 0.3),
-                "workstation_load": np.random.rand(),
-                "consecutive_failures": np.random.randint(0, 3) if status == 'ABEND' else 0,
-                "sla_breach_history": np.random.randint(0, 5)
-            })
+            data.append(
+                {
+                    "timestamp": timestamp,
+                    "job_name": job_name,
+                    "failed": 1 if status == "ABEND" else 0,
+                    "avg_runtime": np.random.normal(300, 50),
+                    "runtime_variance": np.random.normal(20, 5),
+                    "failure_rate_7d": np.random.uniform(0, 0.3),
+                    "workstation_load": np.random.rand(),
+                    "consecutive_failures": np.random.randint(0, 3)
+                    if status == "ABEND"
+                    else 0,
+                    "sla_breach_history": np.random.randint(0, 5),
+                }
+            )
         return pd.DataFrame(data)
 
     def _generate_mock_workload_history(self, days: int) -> pd.DataFrame:
@@ -90,14 +92,17 @@ class ModelTrainingService:
                 total_runtime = int(job_count * np.random.normal(120, 30))
                 cpu_usage = np.random.uniform(0.4, 0.8) * weekday_factor
 
-                data.append({
-                    "date": date.date(),
-                    "workstation": ws,
-                    "job_count": job_count,
-                    "total_runtime": total_runtime,
-                    "cpu_usage": min(cpu_usage, 1.0)
-                })
+                data.append(
+                    {
+                        "date": date.date(),
+                        "workstation": ws,
+                        "job_count": job_count,
+                        "total_runtime": total_runtime,
+                        "cpu_usage": min(cpu_usage, 1.0),
+                    }
+                )
         return pd.DataFrame(data)
+
 
 # Global instance of the training service
 model_trainer = ModelTrainingService()

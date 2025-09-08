@@ -2,9 +2,10 @@ import asyncio
 import json
 import logging
 from typing import Dict, Set
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocket
 import redis.asyncio as redis
 from src.core import config
+
 
 class WebSocketManager:
     def __init__(self):
@@ -15,8 +16,7 @@ class WebSocketManager:
     async def initialize(self):
         """Initialize Redis connection for pub/sub using settings from config."""
         self.redis_client = await redis.from_url(
-            config.REDIS_URL,
-            decode_responses=True
+            config.REDIS_URL, decode_responses=True
         )
         logging.info(f"WebSocketManager initialized with Redis at {config.REDIS_URL}")
 
@@ -68,7 +68,9 @@ class WebSocketManager:
 
         while True:
             try:
-                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                message = await pubsub.get_message(
+                    ignore_subscribe_messages=True, timeout=1.0
+                )
                 if message and message["type"] == "message":
                     try:
                         data = json.loads(message["data"])

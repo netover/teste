@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import Dict, Optional
 from dataclasses import dataclass, asdict
 import redis.asyncio as redis
 
@@ -10,7 +10,7 @@ from src.core import config
 from src.core.database import AsyncSessionLocal
 from src.hwa_connector import HWAClient
 from src.models.database import JobStatusHistory
-from src.services.monitoring.websocket import ws_manager
+
 
 @dataclass
 class JobStatusEvent:
@@ -25,8 +25,9 @@ class JobStatusEvent:
 
     def to_dict(self):
         d = asdict(self)
-        d['timestamp'] = self.timestamp.isoformat()
+        d["timestamp"] = self.timestamp.isoformat()
         return d
+
 
 class JobMonitoringService:
     def __init__(self, poll_interval: int = 30):
@@ -37,8 +38,12 @@ class JobMonitoringService:
 
     async def initialize(self):
         """Initialize monitoring service with a Redis connection."""
-        self.redis_client = await redis.from_url(config.REDIS_URL, decode_responses=True)
-        logging.info(f"JobMonitoringService initialized with Redis at {config.REDIS_URL}")
+        self.redis_client = await redis.from_url(
+            config.REDIS_URL, decode_responses=True
+        )
+        logging.info(
+            f"JobMonitoringService initialized with Redis at {config.REDIS_URL}"
+        )
 
     async def start_monitoring(self):
         """Start continuous job monitoring in a background task."""
@@ -47,7 +52,9 @@ class JobMonitoringService:
             return
 
         self.monitoring_active = True
-        logging.info(f"Job monitoring service started with a poll interval of {self.poll_interval} seconds.")
+        logging.info(
+            f"Job monitoring service started with a poll interval of {self.poll_interval} seconds."
+        )
 
         while self.monitoring_active:
             try:
@@ -70,15 +77,19 @@ class JobMonitoringService:
                 current_jobs = await client.plan.query_job_streams()
         except Exception as e:
             logging.error(f"Failed to query HWA for job streams: {e}")
-            return # Don't proceed if HWA connection fails
+            return  # Don't proceed if HWA connection fails
 
-        new_cache = {job.get('jobStreamName'): job for job in current_jobs if job.get('jobStreamName')}
+        new_cache = {
+            job.get("jobStreamName"): job
+            for job in current_jobs
+            if job.get("jobStreamName")
+        }
 
         # Process updates for jobs that are still present
         for job_name, job_data in new_cache.items():
             if job_name in self.job_cache:
                 old_job = self.job_cache[job_name]
-                if old_job.get('status') != job_data.get('status'):
+                if old_job.get("status") != job_data.get("status"):
                     await self._process_job_update(job_data, old_job)
             else:
                 # New job detected
@@ -90,18 +101,20 @@ class JobMonitoringService:
     async def _process_job_update(self, job_data: dict, old_job_data: Optional[dict]):
         """Process an individual job for status changes."""
         event = JobStatusEvent(
-            job_id=job_data.get('id', job_data.get('jobStreamName')),
-            job_name=job_data.get('jobStreamName'),
-            old_status=old_job_data.get('status', 'NEW') if old_job_data else 'NEW',
-            new_status=job_data.get('status', 'UNKNOWN'),
-            workstation=job_data.get('workstationName', ''),
-            timestamp=datetime.now()
+            job_id=job_data.get("id", job_data.get("jobStreamName")),
+            job_name=job_data.get("jobStreamName"),
+            old_status=old_job_data.get("status", "NEW") if old_job_data else "NEW",
+            new_status=job_data.get("status", "UNKNOWN"),
+            workstation=job_data.get("workstationName", ""),
+            timestamp=datetime.now(),
         )
         await self._handle_status_change(event)
 
     async def _handle_status_change(self, event: JobStatusEvent):
         """Handle a job status change event by logging, storing, alerting, and publishing."""
-        logging.info(f"Job Status Change: {event.job_name} | {event.old_status} -> {event.new_status}")
+        logging.info(
+            f"Job Status Change: {event.job_name} | {event.old_status} -> {event.new_status}"
+        )
 
         # Store in database
         await self._store_status_history(event)
@@ -125,18 +138,26 @@ class JobMonitoringService:
                         new_status=event.new_status,
                         workstation=event.workstation,
                         duration=event.duration,
-                        error_message=event.error_message
+                        error_message=event.error_message,
                         # The 'timestamp' field has a server_default, so we don't set it here
                     )
                     session.add(history_entry)
-            logging.info(f"Successfully stored status change for job '{event.job_name}' in the database.")
+            logging.info(
+                f"Successfully stored status change for job '{event.job_name}' in the database."
+            )
         except Exception as e:
-            logging.error(f"Failed to store job status history for '{event.job_name}': {e}", exc_info=True)
+            logging.error(
+                f"Failed to store job status history for '{event.job_name}': {e}",
+                exc_info=True,
+            )
 
     async def _check_alert_rules(self, event: JobStatusEvent):
         """Check if the status change triggers any defined alert rules."""
-        critical_statuses = ['ABEND', 'ERROR', 'FAIL']
-        if event.new_status in critical_statuses and event.old_status not in critical_statuses:
+        # Use the configurable list of critical statuses from the core config
+        if (
+            event.new_status in config.CRITICAL_STATUSES
+            and event.old_status not in config.CRITICAL_STATUSES
+        ):
             alert_data = {
                 "type": "alert_notification",
                 "data": {
@@ -146,25 +167,25 @@ class JobMonitoringService:
                     "status": event.new_status,
                     "workstation": event.workstation,
                     "timestamp": event.timestamp.isoformat(),
-                    "message": f"Job '{event.job_name}' on workstation '{event.workstation}' failed with status: {event.new_status}."
-                }
+                    "message": f"Job '{event.job_name}' on workstation '{event.workstation}' failed with status: {event.new_status}.",
+                },
             }
             await self._send_alert(alert_data)
 
     async def _send_alert(self, alert_data: dict):
         """Publish an alert to the Redis alert channel."""
         if self.redis_client:
-            await self.redis_client.publish("alert_notifications", json.dumps(alert_data))
+            await self.redis_client.publish(
+                "alert_notifications", json.dumps(alert_data)
+            )
             logging.warning(f"ALERT SENT: {alert_data['data']['message']}")
 
     async def _publish_realtime_update(self, event: JobStatusEvent):
         """Publish a job status update to the Redis job updates channel."""
-        update_data = {
-            "type": "job_status_update",
-            "data": event.to_dict()
-        }
+        update_data = {"type": "job_status_update", "data": event.to_dict()}
         if self.redis_client:
             await self.redis_client.publish("job_updates", json.dumps(update_data))
+
 
 # Global monitoring service instance
 job_monitor = JobMonitoringService()

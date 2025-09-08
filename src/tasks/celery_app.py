@@ -9,11 +9,13 @@ celery_app = Celery(
     "tasks",
     broker=config.REDIS_URL,
     backend=config.REDIS_URL,
-    include=['src.tasks.ml_training'] # List of modules to import when the worker starts
+    include=[
+        "src.tasks.ml_training"
+    ],  # List of modules to import when the worker starts
 )
 
 # Optional Celery configuration
 celery_app.conf.update(
     task_track_started=True,
-    result_expires=3600, # Expire results after 1 hour
+    result_expires=3600,  # Expire results after 1 hour
 )
