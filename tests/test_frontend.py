@@ -21,13 +21,25 @@ def run_app():
 
 @pytest.fixture(scope="session", autouse=True)
 def live_server():
-    server = multiprocessing.Process(target=run_app)
-    server.start()
-    # Give the server time to start up
-    time.sleep(5)
+    # Start the Python backend server
+    backend_server = multiprocessing.Process(target=run_app)
+    backend_server.start()
+
+    # Start the Vite dev server
+    vite_process = multiprocessing.Process(
+        target=lambda: os.system("npm run dev"),
+    )
+    vite_process.start()
+
+    # Give the servers time to start up
+    time.sleep(10) # Increased sleep time to allow both servers to start
     yield
-    server.terminate()
-    server.join()
+
+    # Teardown
+    backend_server.terminate()
+    backend_server.join()
+    vite_process.terminate()
+    vite_process.join()
 
 MOCK_DASHBOARD_DATA = {
     "abend_count": 1, "running_count": 1, "total_job_stream_count": 2,

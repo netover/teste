@@ -21,6 +21,10 @@ ICON_FILE = BASE_DIR / "icon.png"
 APP_NAME = "HWA Dashboard"
 APP_VERSION = "2.0.0"
 
+# --- Environment Configuration ---
+APP_ENV = os.getenv("APP_ENV", "production")  # "development" or "production"
+TESTING = os.getenv("TESTING_MODE", "0") == "1"
+
 # --- Configuration Loading ---
 config = configparser.ConfigParser()
 config.read(CONFIG_FILE)

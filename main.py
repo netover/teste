@@ -62,8 +62,11 @@ def run_server_in_thread(server):
     return thread
 
 
-def main():
+def main(testing: bool = False):
     """Main entry point for the application."""
+    if testing:
+        config.TESTING = True
+
     # Apply structured logging configuration
     logging.config.dictConfig(config.LOGGING_CONFIG)
 

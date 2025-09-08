@@ -26,6 +26,8 @@ export default {
   server: {
     // The port for the Vite development server.
     port: 5173,
+    // Host on all interfaces to be accessible from inside the test container
+    host: '0.0.0.0',
     // Proxy API requests to the Python backend running on port 63136.
     proxy: {
       '/api': {

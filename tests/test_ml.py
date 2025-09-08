@@ -10,8 +10,6 @@ from src.services.ml.models import (
     WorkstationForecastResponse,
 )
 
-pytestmark = pytest.mark.asyncio
-
 
 @pytest.fixture
 def mock_job_history_df():

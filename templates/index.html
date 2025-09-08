@@ -33,13 +33,17 @@
 </section>
 {% endblock %}
 
+{% set assets = asset('main.ts') %}
+
 {% block styles %}
-    {% set main_assets = asset('static/js/main.js') %}
-    {% if main_assets.css %}
-        <link rel="stylesheet" href="{{ main_assets.css }}">
+    {% if assets.css %}
+        <link rel="stylesheet" href="{{ assets.css }}">
     {% endif %}
 {% endblock %}
 
 {% block scripts %}
-    <script type="module" src="{{ main_assets.js }}"></script>
+    {% if assets.vite_client %}
+        <script type="module" src="{{ assets.vite_client }}"></script>
+    {% endif %}
+    <script type="module" src="{{ assets.js }}"></script>
 {% endblock %}
