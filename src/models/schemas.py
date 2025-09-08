@@ -39,9 +39,9 @@ class JobStatusHistory(JobStatusHistoryBase):
     id: int
     timestamp: datetime
 
-    class Config:
-        orm_mode = True  # In Pydantic v2, this is from_attributes = True
-        from_attributes = True
+    model_config = {
+        "from_attributes": True
+    }
 
 
 # --- Alert Rule Schemas ---
@@ -86,6 +86,6 @@ class AlertRule(AlertRuleBase):
 
     id: int
 
-    class Config:
-        orm_mode = True
-        from_attributes = True
+    model_config = {
+        "from_attributes": True
+    }

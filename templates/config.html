@@ -34,6 +34,13 @@
 <div id="message-area" class="hidden"></div>
 {% endblock %}
 
+{% block styles %}
+    {% set config_assets = asset('static/js/config.js') %}
+    {% if config_assets.css %}
+        <link rel="stylesheet" href="{{ config_assets.css }}">
+    {% endif %}
+{% endblock %}
+
 {% block scripts %}
-<script src="/static/js/config.js"></script>
+    <script type="module" src="{{ config_assets.js }}"></script>
 {% endblock %}

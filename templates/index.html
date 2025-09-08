@@ -33,29 +33,13 @@
 </section>
 {% endblock %}
 
+{% block styles %}
+    {% set main_assets = asset('static/js/main.js') %}
+    {% if main_assets.css %}
+        <link rel="stylesheet" href="{{ main_assets.css }}">
+    {% endif %}
+{% endblock %}
+
 {% block scripts %}
-<!-- Inject layout data from backend -->
-<script>
-    const dashboardLayout = {{ layout_data|tojson|safe }};
-</script>
-
-<!-- Third-party libraries -->
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-
-<!-- Main application script -->
-<script type="module" src="/static/js/main.js"></script>
-<script>
-    // Specific script for the shutdown button in the base template
-    document.addEventListener('DOMContentLoaded', () => {
-        const shutdownBtn = document.getElementById('shutdown-btn');
-        if (shutdownBtn) {
-            shutdownBtn.addEventListener('click', async () => {
-                if (confirm('Are you sure you want to shut down the application?')) {
-                    try { await fetch('/shutdown', { method: 'POST' }); }
-                    finally { document.body.innerHTML = '<header><h1>Application Shut Down</h1></header><main><p>You can now close this browser tab.</p></main>'; }
-                }
-            });
-        }
-    });
-</script>
+    <script type="module" src="{{ main_assets.js }}"></script>
 {% endblock %}

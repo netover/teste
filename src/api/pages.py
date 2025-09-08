@@ -6,23 +6,18 @@ import json
 
 from src.core import config
 from fastapi.templating import Jinja2Templates
+from src.api.assets import setup_jinja_env
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 templates = Jinja2Templates(directory=config.TEMPLATES_DIR)
+setup_jinja_env(templates)
 
 
 @router.get("/", response_class=HTMLResponse, tags=["Pages"])
 @limiter.limit("100/minute")
 async def index(request: Request):
-    try:
-        with open(config.LAYOUT_FILE, "r", encoding="utf-8") as f:
-            layout_data = json.load(f)
-    except Exception:
-        layout_data = [{"type": "error", "message": "Could not load layout file."}]
-    return templates.TemplateResponse(
-        "index.html", {"request": request, "layout_data": layout_data}
-    )
+    return templates.TemplateResponse("index.html", {"request": request})
 
 
 @router.get("/config", response_class=HTMLResponse, tags=["Pages"])

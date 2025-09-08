@@ -1,4 +1,13 @@
-function renderOQLTable(container, data) {
+interface OQLWidgetConfig {
+    id: string;
+    title?: string;
+    oql_source?: 'plan' | 'model';
+    oql_query: string;
+}
+
+type OQLData = Record<string, any>[];
+
+function renderOQLTable(container: HTMLElement, data: OQLData): void {
     if (!Array.isArray(data) || data.length === 0) {
         container.innerHTML = '<p>No results found for this query.</p>';
         return;
@@ -28,7 +37,7 @@ function renderOQLTable(container, data) {
                 value = JSON.stringify(value, null, 2);
                 td.innerHTML = `<pre><code>${value}</code></pre>`;
             } else {
-                td.textContent = value;
+                td.textContent = String(value);
             }
             row.appendChild(td);
         });
@@ -40,7 +49,7 @@ function renderOQLTable(container, data) {
     container.appendChild(table);
 }
 
-async function fetchAndRender(container, widgetConfig) {
+async function fetchAndRender(container: HTMLElement, widgetConfig: OQLWidgetConfig): Promise<void> {
     if (!container) return;
 
     try {
@@ -54,11 +63,11 @@ async function fetchAndRender(container, widgetConfig) {
         }
         renderOQLTable(container, data);
     } catch (error) {
-        container.innerHTML = `<p class="error-message">Error: ${error.message}</p>`;
+        container.innerHTML = `<p class="error-message">Error: ${(error as Error).message}</p>`;
     }
 }
 
-export function renderOQLTableWidget(widgetConfig) {
+export function renderOQLTableWidget(widgetConfig: OQLWidgetConfig): HTMLElement {
     const widgetEl = document.createElement('div');
     widgetEl.id = widgetConfig.id;
     widgetEl.className = 'widget-table';

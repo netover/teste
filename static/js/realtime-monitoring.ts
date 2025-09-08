@@ -4,7 +4,7 @@
  * This script connects to the backend WebSocket server to receive and display
  * real-time job status updates and alerts.
  */
-class RealtimeMonitoring {
+export class RealtimeMonitoring {
     constructor(wsUrl, maxReconnectAttempts = 5, initialReconnectDelay = 1000) {
         this.wsUrl = wsUrl;
         this.socket = null;
@@ -182,12 +182,3 @@ class RealtimeMonitoring {
         indicator.title = `WebSocket: ${status.charAt(0).toUpperCase() + status.slice(1)}`;
     }
 }
-
-document.addEventListener('DOMContentLoaded', () => {
-    // Determine WebSocket protocol (ws or wss)
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${window.location.host}/ws/monitoring`;
-
-    const realtimeMonitoring = new RealtimeMonitoring(wsUrl);
-    realtimeMonitoring.connect();
-});

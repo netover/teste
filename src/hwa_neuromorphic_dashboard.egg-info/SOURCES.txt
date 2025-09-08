@@ -6,6 +6,7 @@ src/desktop_app.py
 src/hwa_connector.py
 src/security.py
 src/api/__init__.py
+src/api/assets.py
 src/api/config.py
 src/api/hwa.py
 src/api/ml.py

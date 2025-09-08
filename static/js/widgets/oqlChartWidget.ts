@@ -1,4 +1,23 @@
-function renderOQLChart(container, data, config, chartManager) {
+import { Chart, ChartConfiguration, ChartTypeRegistry } from 'chart.js';
+
+interface OQLChartWidgetConfig {
+    id: string;
+    title?: string;
+    oql_source?: 'plan' | 'model';
+    oql_query: string;
+    chart_type?: keyof ChartTypeRegistry;
+    label_column: string;
+    data_column: string;
+}
+
+type OQLData = Record<string, any>[];
+
+interface ChartManager {
+    createChart: (id: string, config: ChartConfiguration) => void;
+    destroyChart: (id: string) => void;
+}
+
+function renderOQLChart(container: HTMLElement, data: OQLData, config: OQLChartWidgetConfig, chartManager: ChartManager): void {
     if (!Array.isArray(data) || data.length === 0) {
         container.innerHTML = '<p>No data for this chart.</p>';
         return;
@@ -14,7 +33,7 @@ function renderOQLChart(container, data, config, chartManager) {
     const values = data.map(item => item[data_column]);
 
     container.innerHTML = ''; // Clear spinner
-    const chartConfig = {
+    const chartConfig: ChartConfiguration = {
         type: chart_type || 'bar',
         data: {
             labels: labels,
@@ -48,7 +67,7 @@ function renderOQLChart(container, data, config, chartManager) {
     chartManager.createChart(config.id, chartConfig);
 }
 
-async function fetchAndRender(container, widgetConfig, chartManager) {
+async function fetchAndRender(container: HTMLElement, widgetConfig: OQLChartWidgetConfig, chartManager: ChartManager): Promise<void> {
     if (!container) return;
     container.innerHTML = '<div class="loading-spinner"></div>';
 
@@ -63,11 +82,11 @@ async function fetchAndRender(container, widgetConfig, chartManager) {
         }
         renderOQLChart(container, data, widgetConfig, chartManager);
     } catch (error) {
-        container.innerHTML = `<p class="error-message">Error: ${error.message}</p>`;
+        container.innerHTML = `<p class="error-message">Error: ${(error as Error).message}</p>`;
     }
 }
 
-export function renderOQLChartWidget(widgetConfig, chartManager) {
+export function renderOQLChartWidget(widgetConfig: OQLChartWidgetConfig, chartManager: ChartManager): HTMLElement {
     const widgetEl = document.createElement('div');
     widgetEl.id = widgetConfig.id;
     widgetEl.className = 'widget-chart';

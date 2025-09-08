@@ -1,19 +1,14 @@
-/**
- * A callback function for modal setup.
- * @param {HTMLElement} modalContent - The main content element of the modal.
- * @param {() => void} closeModal - A function to programmatically close the modal.
- */
-// type ModalSetupCallback = (modalContent: HTMLElement, closeModal: () => void) => void;
+type ModalSetupCallback = (modalContent: HTMLElement, closeModal: () => void) => void;
 
 /**
  * Creates and displays a generic, draggable modal window.
- * @param {string} title - The title to display in the modal header.
- * @param {string} bodyHTML - The HTML content to display in the modal body.
- * @param {Function} [setupCallback] - An optional callback function that receives the modal content element for further setup.
+ * @param title The title to display in the modal header.
+ * @param bodyHTML The HTML content to display in the modal body.
+ * @param setupCallback An optional callback function that receives the modal content element for further setup.
  */
-export function createModal(title, bodyHTML, setupCallback) {
+export function createModal(title: string, bodyHTML: string, setupCallback?: ModalSetupCallback): void {
     // Remove existing modal first
-    const existingModal = document.querySelector('.modal-overlay');
+    const existingModal = document.querySelector<HTMLElement>('.modal-overlay');
     if (existingModal) {
         existingModal.remove();
     }
@@ -45,7 +40,7 @@ export function createModal(title, bodyHTML, setupCallback) {
         content.classList.add('animated-open');
     });
 
-    const closeModal = () => {
+    const closeModal = (): void => {
         content.classList.remove('animated-open');
         setTimeout(() => {
             if (document.body.contains(overlay)) {
@@ -57,7 +52,7 @@ export function createModal(title, bodyHTML, setupCallback) {
     };
 
     closeBtn.addEventListener('click', closeModal);
-    overlay.addEventListener('click', (e) => {
+    overlay.addEventListener('click', (e: MouseEvent) => {
         if (e.target === overlay) closeModal();
     });
 
@@ -65,7 +60,7 @@ export function createModal(title, bodyHTML, setupCallback) {
     let offset = { x: 0, y: 0 };
     titleEl.style.cursor = 'grab';
 
-    const onMouseDown = (e) => {
+    const onMouseDown = (e: MouseEvent) => {
         isDragging = true;
         offset = { x: e.clientX - content.offsetLeft, y: e.clientY - content.offsetTop };
         titleEl.style.cursor = 'grabbing';
@@ -73,7 +68,7 @@ export function createModal(title, bodyHTML, setupCallback) {
         document.addEventListener('mouseup', onMouseUp);
     };
 
-    const onMouseMove = (e) => {
+    const onMouseMove = (e: MouseEvent) => {
         if (!isDragging) return;
         e.preventDefault();
         content.style.transform = 'none';
@@ -95,7 +90,9 @@ export function createModal(title, bodyHTML, setupCallback) {
     }
 }
 
-export function createListWindow(title, itemList, renderItem) {
+import { JobStream } from './models.ts';
+
+export function createListWindow<T>(title: string, itemList: T[], renderItem: (item: T) => string): void {
     let listHtml = '<ul>';
     if (itemList && itemList.length > 0) {
         itemList.forEach(item => { listHtml += renderItem(item); });
@@ -106,11 +103,11 @@ export function createListWindow(title, itemList, renderItem) {
     createModal(title, listHtml);
 }
 
-export function createJobDetailWindow(jobStream) {
+export function createJobDetailWindow(jobStream: JobStream): void {
     const { jobStreamName, workstationName, status, startTime, id: jobId } = jobStream;
     const planId = 'current';
 
-    const getStatusClass = (status) => {
+    const getStatusClass = (status: string): string => {
         if (!status) return 'status-unknown';
         const s = status.toLowerCase();
         if (s.includes('succ') || s.includes('link')) return 'status-success';

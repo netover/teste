@@ -1,39 +1,70 @@
-import { renderSummaryWidget, updateSummaryWidget } from './widgets/summaryWidget.js';
-import { renderOQLTableWidget } from './widgets/oqlTableWidget.js';
-import { renderOQLChartWidget } from './widgets/oqlChartWidget.js';
-import { createJobDetailWindow } from './ui_helpers.js';
+import { Chart, registerables, ChartConfiguration } from 'chart.js';
+import Sortable from 'sortablejs';
+import { renderSummaryWidget } from './widgets/summaryWidget.ts';
+import { renderOQLTableWidget } from './widgets/oqlTableWidget.ts';
+import { renderOQLChartWidget } from './widgets/oqlChartWidget.ts';
+import { createJobDetailWindow } from './ui_helpers.ts';
+import { RealtimeMonitoring } from './realtime-monitoring.ts';
+import { JobStream } from './models.ts';
+import '../css/style.css';
+
+// Initialize Chart.js
+Chart.register(...registerables);
+
+// --- Type Definitions ---
+interface WidgetConfig {
+    id: string;
+    type: 'summary_count' | 'oql_table' | 'oql_chart' | 'error';
+    [key: string]: any; // Allow other properties
+}
+
+interface ApiData {
+    job_streams?: JobStream[];
+    workstations?: any[];
+    [key: string]: any;
+}
+
+interface ChartManager {
+    charts: Map<string, Chart>;
+    createChart(widgetId: string, config: ChartConfiguration): void;
+    destroyChart(widgetId: string): void;
+    destroyAllCharts(): void;
+}
 
 /**
  * Main JavaScript file for the HWA Dashboard.
  * This file acts as an orchestrator, handling data fetching, state management,
  * and delegating UI rendering to specialized widget modules.
  */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // --- DOM Element References ---
-    const widgetsContainer = document.getElementById('summary-widgets');
-    const jobStreamsGrid = document.getElementById('job-streams-grid');
-    const workstationsGrid = document.getElementById('workstations-grid');
-    const loadingIndicator = document.getElementById('loading-indicator');
-    const errorDisplay = document.getElementById('error-display');
+    const widgetsContainer = document.getElementById('summary-widgets') as HTMLElement;
+    const jobStreamsGrid = document.getElementById('job-streams-grid') as HTMLElement;
+    const workstationsGrid = document.getElementById('workstations-grid') as HTMLElement;
+    const loadingIndicator = document.getElementById('loading-indicator') as HTMLElement;
+    const errorDisplay = document.getElementById('error-display') as HTMLElement;
 
     // --- Global State ---
-    let apiData = {};
-    let sortedLayout = [];
+    let apiData: ApiData = {};
+    let dashboardLayout: WidgetConfig[] = [];
+    let sortedLayout: WidgetConfig[] = [];
 
     // --- Chart Manager ---
-    const chartManager = {
-        charts: new Map(),
-        createChart(widgetId, config) {
+    const chartManager: ChartManager = {
+        charts: new Map<string, Chart>(),
+        createChart(widgetId: string, config: ChartConfiguration) {
             this.destroyChart(widgetId);
-            const canvas = document.querySelector(`#${widgetId} canvas`);
+            const canvas = document.querySelector<HTMLCanvasElement>(`#${widgetId} canvas`);
             if (canvas) {
                 const ctx = canvas.getContext('2d');
-                this.charts.set(widgetId, new Chart(ctx, config));
+                if (ctx) {
+                    this.charts.set(widgetId, new Chart(ctx, config));
+                }
             }
         },
-        destroyChart(widgetId) {
+        destroyChart(widgetId: string) {
             if (this.charts.has(widgetId)) {
-                this.charts.get(widgetId).destroy();
+                this.charts.get(widgetId)?.destroy();
                 this.charts.delete(widgetId);
             }
         },
@@ -44,21 +75,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const sortLayout = () => {
-        const savedOrder = JSON.parse(localStorage.getItem('dashboardWidgetOrder'));
+    const sortLayout = (): void => {
+        const savedOrderJSON = localStorage.getItem('dashboardWidgetOrder');
+        const savedOrder = savedOrderJSON ? JSON.parse(savedOrderJSON) : null;
         const layoutMap = new Map(dashboardLayout.map(item => [item.id, item]));
         sortedLayout = (savedOrder && savedOrder.length === dashboardLayout.length)
-            ? savedOrder.map(id => layoutMap.get(id)).filter(Boolean)
+            ? savedOrder.map((id: string) => layoutMap.get(id)).filter(Boolean) as WidgetConfig[]
             : [...dashboardLayout];
     };
 
-    const renderWidgets = () => {
+    const renderWidgets = (): void => {
         if (!widgetsContainer) return;
         chartManager.destroyAllCharts();
         widgetsContainer.innerHTML = '';
 
         sortedLayout.forEach(widgetConfig => {
-            let widgetEl;
+            let widgetEl: HTMLElement | undefined;
             switch (widgetConfig.type) {
                 case 'oql_table':
                     widgetEl = renderOQLTableWidget(widgetConfig);
@@ -82,8 +114,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    const initDragAndDrop = () => {
-        if (!widgetsContainer || typeof Sortable === 'undefined') return;
+    const initDragAndDrop = (): void => {
+        if (!widgetsContainer) return;
         new Sortable(widgetsContainer, {
             animation: 150,
             ghostClass: 'widget-ghost',
@@ -94,15 +126,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    const fetchData = async () => {
-        if (!jobStreamsGrid.hasChildNodes()) loadingIndicator.classList.remove('hidden');
+    const fetchDashboardData = async (): Promise<boolean> => {
+        if (jobStreamsGrid && !jobStreamsGrid.hasChildNodes()) loadingIndicator.classList.remove('hidden');
         errorDisplay.classList.add('hidden');
 
         try {
             const response = await fetch('/api/dashboard_data');
-            const data = await response.json();
+            const data: ApiData = await response.json();
             loadingIndicator.classList.add('hidden');
-            if (data.error) throw new Error(data.error);
+            if ((data as any).error) throw new Error((data as any).error);
 
             const hasChanged = JSON.stringify(apiData) !== JSON.stringify(data);
             apiData = data;
@@ -115,12 +147,13 @@ document.addEventListener('DOMContentLoaded', () => {
             return hasChanged;
         } catch (error) {
             loadingIndicator.classList.add('hidden');
-            showError(error.message);
+            showError((error as Error).message);
             return false;
         }
     };
 
-    const renderJobStreams = (jobStreams) => {
+    const renderJobStreams = (jobStreams: JobStream[]): void => {
+        if (!jobStreamsGrid) return;
         jobStreamsGrid.innerHTML = '';
         if (jobStreams.length === 0) {
             jobStreamsGrid.innerHTML = '<p>No job streams found.</p>';
@@ -145,7 +178,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    const renderWorkstations = (workstations) => {
+    const renderWorkstations = (workstations: any[]): void => {
+        if (!workstationsGrid) return;
         workstationsGrid.innerHTML = '';
         if (workstations.length === 0) {
             workstationsGrid.innerHTML = '<p>No workstations found.</p>';
@@ -160,7 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    const getStatusClass = (status) => {
+    const getStatusClass = (status: string): string => {
         if (!status) return 'status-unknown';
         const s = status.toLowerCase();
         if (s.includes('succ') || s.includes('link')) return 'status-success';
@@ -170,12 +204,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return 'status-unknown';
     };
 
-    const showError = (message) => {
+    const showError = (message: string): void => {
         errorDisplay.innerHTML = message ? `<i class="fas fa-exclamation-triangle"></i> ${message}` : '';
         errorDisplay.classList.toggle('hidden', !message);
     };
 
-    const setupShutdown = () => {
+    const setupShutdown = (): void => {
         const shutdownBtn = document.getElementById('shutdown-btn');
         if (shutdownBtn) {
             shutdownBtn.addEventListener('click', async () => {
@@ -188,40 +222,55 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const adaptivePoller = {
-        minInterval: 15000, maxInterval: 180000, currentInterval: 30000, timerId: null,
-        start() { this.stop(); const loop = async () => { const hasChanges = await fetchData(); this.adapt(hasChanges); this.timerId = setTimeout(loop, this.currentInterval); }; loop(); },
+        minInterval: 15000, maxInterval: 180000, currentInterval: 30000, timerId: null as number | null,
+        start() { this.stop(); const loop = async () => { const hasChanges = await fetchDashboardData(); this.adapt(hasChanges); this.timerId = window.setTimeout(loop, this.currentInterval); }; loop(); },
         stop() { if (this.timerId) { clearTimeout(this.timerId); this.timerId = null; console.log("Adaptive poller stopped."); } },
-        adapt(hasChanges) { this.currentInterval = hasChanges ? this.minInterval : Math.min(this.currentInterval * 1.2, this.maxInterval); }
+        adapt(hasChanges: boolean) { this.currentInterval = hasChanges ? this.minInterval : Math.min(this.currentInterval * 1.2, this.maxInterval); }
     };
 
-    const handleJobAction = async (e) => {
-        const { planId, jobId, action, closeModal } = e.detail;
+    const handleJobAction = async (e: Event): Promise<void> => {
+        const { planId, jobId, action, closeModal } = (e as CustomEvent).detail;
         showError('');
         try {
-            // This requires an API_KEY, which the frontend doesn't have by default.
-            // This is a conceptual implementation. A real app would need a secure way
-            // to provide this key if it's required for user-facing actions.
             const response = await fetch(`/api/plan/${planId}/job/${jobId}/action/${action}`, {
                 method: 'PUT',
-                headers: { 'X-API-Key': 'your_api_key_here_if_needed' } // Placeholder
+                headers: { 'X-API-Key': 'your_api_key_here_if_needed' }
             });
             const result = await response.json();
             if (!response.ok) throw new Error(result.detail || `Failed to send ${action} command.`);
             alert(result.message || `Successfully sent ${action} command.`);
             if (closeModal) closeModal();
-            fetchData();
+            fetchDashboardData();
         } catch (error) {
             console.error(`${action} action failed:`, error);
-            showError(`Error performing ${action} action: ${error.message}`);
+            showError(`Error performing ${action} action: ${(error as Error).message}`);
+        }
+    };
+
+    const fetchLayout = async (): Promise<WidgetConfig[]> => {
+        try {
+            const response = await fetch('/api/dashboard_layout');
+            if (!response.ok) throw new Error('Could not load layout.');
+            return await response.json();
+        } catch (error) {
+            showError((error as Error).message);
+            return [{ type: 'error', id: 'layout-error', message: (error as Error).message }];
         }
     };
 
     // --- Application Initialization ---
+    dashboardLayout = await fetchLayout();
     sortLayout();
     renderWidgets();
     initDragAndDrop();
     adaptivePoller.start();
     setupShutdown();
+
+    // --- WebSocket Initialization ---
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${window.location.host}/ws/monitoring`;
+    const realtimeMonitoring = new RealtimeMonitoring(wsUrl);
+    realtimeMonitoring.connect();
 
     document.addEventListener('websocket:connected', () => adaptivePoller.stop());
     document.addEventListener('job-action', handleJobAction);
