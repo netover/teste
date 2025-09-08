@@ -10,7 +10,8 @@ celery_app = Celery(
     broker=config.REDIS_URL,
     backend=config.REDIS_URL,
     include=[
-        "src.tasks.ml_training"
+        "src.tasks.ml_training",
+        "src.tasks.monitoring"
     ],  # List of modules to import when the worker starts
 )
 
@@ -18,4 +19,10 @@ celery_app = Celery(
 celery_app.conf.update(
     task_track_started=True,
     result_expires=3600,  # Expire results after 1 hour
+    beat_schedule={
+        'poll-job-statuses-every-30-seconds': {
+            'task': 'tasks.poll_job_statuses',
+            'schedule': 30.0,
+        },
+    },
 )
