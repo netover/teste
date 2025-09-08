@@ -17,7 +17,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 def run_app():
     # Force the app to run in console mode for the test environment
     os.environ["FORCE_CONSOLE_MODE"] = "1"
-    run_main_app()
+    # Run the app in testing mode to use the Vite dev server
+    run_main_app(testing=True)
 
 @pytest.fixture(scope="session", autouse=True)
 def live_server():
