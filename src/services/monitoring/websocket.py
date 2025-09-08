@@ -4,13 +4,7 @@ import logging
 from typing import Dict, Set
 from fastapi import WebSocket, WebSocketDisconnect
 import redis.asyncio as redis
-from prometheus_client import Gauge
 from src.core import config
-
-# --- Prometheus Metrics ---
-active_websockets_gauge = Gauge(
-    "hwa_active_websockets", "Number of active WebSocket connections"
-)
 
 
 class WebSocketManager:
@@ -32,7 +26,6 @@ class WebSocketManager:
         if user_id not in self.active_connections:
             self.active_connections[user_id] = set()
         self.active_connections[user_id].add(websocket)
-        active_websockets_gauge.inc()
         logging.info(f"WebSocket connected for user: {user_id}")
 
     async def disconnect(self, websocket: WebSocket, user_id: str):
@@ -41,7 +34,6 @@ class WebSocketManager:
             self.active_connections[user_id].discard(websocket)
             if not self.active_connections[user_id]:
                 del self.active_connections[user_id]
-            active_websockets_gauge.dec()
         logging.info(f"WebSocket disconnected for user: {user_id}")
 
     async def send_personal_message(self, message: dict, user_id: str):

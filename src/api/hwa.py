@@ -1,7 +1,7 @@
 import logging
 import re
 import asyncio
-from fastapi import APIRouter, Request, HTTPException, Depends
+from fastapi import APIRouter, Request, HTTPException, Depends, Query
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -104,7 +104,7 @@ async def get_dashboard_data(
 @limiter.limit("60/minute")
 async def execute_oql(
     request: Request,
-    q: str,
+    q: str = Query(..., min_length=3, max_length=1024),
     source: str = "plan",
     client: HWAClient = Depends(get_hwa_client),
 ):

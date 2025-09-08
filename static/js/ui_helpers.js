@@ -106,7 +106,7 @@ export function createListWindow(title, itemList, renderItem) {
     createModal(title, listHtml);
 }
 
-export function createJobDetailWindow(jobStream, apiData, showError, fetchData) {
+export function createJobDetailWindow(jobStream) {
     const { jobStreamName, workstationName, status, startTime, id: jobId } = jobStream;
     const planId = 'current';
 
@@ -133,31 +133,16 @@ export function createJobDetailWindow(jobStream, apiData, showError, fetchData) 
         </div>
     `;
 
-    const performJobAction = async (planId, jobId, action, callbackOnSuccess) => {
-        showError('');
-        try {
-            const response = await fetch(`/api/plan/${planId}/job/${jobId}/action/${action}`, {
-                method: 'PUT',
-            });
-            const result = await response.json();
-            if (!response.ok) {
-                throw new Error(result.detail || `Failed to send ${action} command.`);
-            }
-            alert(result.message || `Successfully sent ${action} command.`);
-            if (callbackOnSuccess) callbackOnSuccess();
-            fetchData();
-        } catch (error) {
-            console.error(`${action} action failed:`, error);
-            showError(`Error performing ${action} action: ${error.message}`);
-        }
-    };
-
     createModal(`Job Details: ${jobStreamName}`, bodyHTML, (modal, closeModal) => {
         modal.querySelectorAll('.modal-footer button').forEach(btn => {
             btn.addEventListener('click', () => {
                 const action = btn.dataset.action;
                 if (confirm(`Are you sure you want to ${action} job "${jobStreamName}"?`)) {
-                    performJobAction(planId, jobId, action, closeModal);
+                    // Dispatch a custom event instead of handling the fetch here
+                    const event = new CustomEvent('job-action', {
+                        detail: { planId, jobId, action, jobName: jobStreamName, closeModal }
+                    });
+                    document.dispatchEvent(event);
                 }
             });
         });

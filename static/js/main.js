@@ -9,18 +9,18 @@ import { createJobDetailWindow } from './ui_helpers.js';
  * and delegating UI rendering to specialized widget modules.
  */
 document.addEventListener('DOMContentLoaded', () => {
-    // DOM Element References
+    // --- DOM Element References ---
     const widgetsContainer = document.getElementById('summary-widgets');
     const jobStreamsGrid = document.getElementById('job-streams-grid');
     const workstationsGrid = document.getElementById('workstations-grid');
     const loadingIndicator = document.getElementById('loading-indicator');
     const errorDisplay = document.getElementById('error-display');
 
-    // Global State
+    // --- Global State ---
     let apiData = {};
     let sortedLayout = [];
 
-    // Chart Manager
+    // --- Chart Manager ---
     const chartManager = {
         charts: new Map(),
         createChart(widgetId, config) {
@@ -108,7 +108,6 @@ document.addEventListener('DOMContentLoaded', () => {
             apiData = data;
 
             if (hasChanged) {
-                // The most robust way to update is to simply re-render everything.
                 renderWidgets();
                 renderJobStreams(data.job_streams || []);
                 renderWorkstations(data.workstations || []);
@@ -141,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <p><strong>Status:</strong> <span class="status-badge ${statusClass}">${js.status || 'N/A'}</span></p>
                 <p><strong>Start Time:</strong> ${js.startTime ? new Date(js.startTime).toLocaleString() : 'N/A'}</p>
             `;
-            card.addEventListener('click', () => createJobDetailWindow(js, showError, fetchData));
+            card.addEventListener('click', () => createJobDetailWindow(js));
             jobStreamsGrid.appendChild(card);
         });
     };
@@ -190,24 +189,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const adaptivePoller = {
         minInterval: 15000, maxInterval: 180000, currentInterval: 30000, timerId: null,
-        start() {
-            this.stop();
-            const loop = async () => {
-                const hasChanges = await fetchData();
-                this.adapt(hasChanges);
-                this.timerId = setTimeout(loop, this.currentInterval);
-            };
-            loop();
-        },
-        stop() {
-            if (this.timerId) {
-                clearTimeout(this.timerId);
-                this.timerId = null;
-                console.log("Adaptive poller stopped.");
-            }
-        },
-        adapt(hasChanges) {
-            this.currentInterval = hasChanges ? this.minInterval : Math.min(this.currentInterval * 1.2, this.maxInterval);
+        start() { this.stop(); const loop = async () => { const hasChanges = await fetchData(); this.adapt(hasChanges); this.timerId = setTimeout(loop, this.currentInterval); }; loop(); },
+        stop() { if (this.timerId) { clearTimeout(this.timerId); this.timerId = null; console.log("Adaptive poller stopped."); } },
+        adapt(hasChanges) { this.currentInterval = hasChanges ? this.minInterval : Math.min(this.currentInterval * 1.2, this.maxInterval); }
+    };
+
+    const handleJobAction = async (e) => {
+        const { planId, jobId, action, closeModal } = e.detail;
+        showError('');
+        try {
+            // This requires an API_KEY, which the frontend doesn't have by default.
+            // This is a conceptual implementation. A real app would need a secure way
+            // to provide this key if it's required for user-facing actions.
+            const response = await fetch(`/api/plan/${planId}/job/${jobId}/action/${action}`, {
+                method: 'PUT',
+                headers: { 'X-API-Key': 'your_api_key_here_if_needed' } // Placeholder
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.detail || `Failed to send ${action} command.`);
+            alert(result.message || `Successfully sent ${action} command.`);
+            if (closeModal) closeModal();
+            fetchData();
+        } catch (error) {
+            console.error(`${action} action failed:`, error);
+            showError(`Error performing ${action} action: ${error.message}`);
         }
     };
 
@@ -218,7 +223,6 @@ document.addEventListener('DOMContentLoaded', () => {
     adaptivePoller.start();
     setupShutdown();
 
-    document.addEventListener('websocket:connected', () => {
-        adaptivePoller.stop();
-    });
+    document.addEventListener('websocket:connected', () => adaptivePoller.stop());
+    document.addEventListener('job-action', handleJobAction);
 });

@@ -6,6 +6,8 @@ username = YOUR_USERNAME
 # Leave password blank if you want to be prompted on startup
 password =
 verify_ssl = false
+# Default pagination limit for HWA API queries
+how_many_limit = 500
 
 [database]
 # SQLAlchemy database connection string.
@@ -20,6 +22,8 @@ REDIS_URL = redis://localhost:6379
 [monitoring]
 # Comma-separated list of job statuses that should trigger a high-priority alert.
 critical_statuses = ABEND,ERROR,FAIL
+# Polling interval in seconds for the job monitoring service (used by Celery Beat)
+poll_interval_seconds = 30
 
 [security]
 # A secret key for securing administrative endpoints.

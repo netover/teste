@@ -6,7 +6,6 @@ from tenacity import retry, stop_after_attempt, wait_fixed, before_sleep_log
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from starlette_prometheus import PrometheusMiddleware, metrics
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -14,8 +13,7 @@ from slowapi.errors import RateLimitExceeded
 from src.core import config
 from src.api import pages, config as api_config, hwa, websockets, monitoring, ml
 from src.services.monitoring.websocket import ws_manager
-# job_monitor is no longer started by the web server
-# from src.services.monitoring.job_monitor import job_monitor
+from src.services.monitoring.job_monitor import job_monitor
 
 # --- Lifespan Management for Background Tasks ---
 
@@ -28,9 +26,8 @@ async def _initialize_services():
     """Helper function to initialize services with retry logic."""
     logging.info("Attempting to initialize services...")
     await ws_manager.initialize()
-    # The JobMonitoringService is now managed by Celery Beat, no need to initialize here.
-    # await job_monitor.initialize()
-    logging.info("WebSocket service initialized successfully.")
+    await job_monitor.initialize()
+    logging.info("Services initialized successfully.")
 
 
 @asynccontextmanager
@@ -40,20 +37,24 @@ async def lifespan(app: FastAPI):
     try:
         await _initialize_services()
     except Exception as e:
-        logging.critical(f"WebSocket service failed to initialize after multiple retries: {e}", exc_info=True)
+        logging.critical(f"Services failed to initialize after multiple retries: {e}", exc_info=True)
 
-    # Start WebSocket pub/sub listener
+    # Start background tasks
     pubsub_task = asyncio.create_task(ws_manager.subscribe_to_updates())
+    monitoring_task = asyncio.create_task(job_monitor.start_monitoring())
 
     yield
 
     # Shutdown
     logging.info("Application shutdown...")
+    job_monitor.stop_monitoring()
+    monitoring_task.cancel()
     pubsub_task.cancel()
     try:
+        await monitoring_task
         await pubsub_task
     except asyncio.CancelledError:
-        logging.info("WebSocket pub/sub task cancelled successfully.")
+        logging.info("Background tasks cancelled successfully.")
 
 
 # --- App Setup ---
@@ -66,8 +67,6 @@ app = FastAPI(
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-app.add_middleware(PrometheusMiddleware)
-app.add_route("/metrics", metrics)
 
 # --- Middleware ---
 app.add_middleware(

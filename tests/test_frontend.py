@@ -1,5 +1,8 @@
 import sys
 import os
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import pytest
 from playwright.sync_api import Page, expect
 from main import main as run_main_app
@@ -56,10 +59,8 @@ def test_dashboard_loads_and_displays_data(page: Page):
     page.route("**/api/dashboard_data", lambda route: route.fulfill(json=MOCK_DASHBOARD_DATA))
     page.goto("http://localhost:63136/")
 
-    # Wait for a specific element that depends on the data to be visible
     expect(page.locator("#job-streams-grid .job-stream-card").first).to_be_visible()
 
-    # Now check the assertions
     expect(page.locator("#widget_abend .widget-value")).to_have_text("1")
     expect(page.locator("#widget_running .widget-value")).to_have_text("1")
     expect(page.locator("#job-streams-grid .job-stream-card")).to_have_count(2)

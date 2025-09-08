@@ -1,6 +1,7 @@
 import os
 import configparser
 from pathlib import Path
+import logging.config
 from dotenv import load_dotenv
 
 # Load environment variables from a .env file if it exists
@@ -56,6 +57,12 @@ _critical_statuses_str = config.get(
 CRITICAL_STATUSES = [
     status.strip().upper() for status in _critical_statuses_str.split(",")
 ]
+MONITORING_POLL_INTERVAL = config.getint(
+    "monitoring", "poll_interval_seconds", fallback=30
+)
+
+# --- HWA Client Configuration ---
+HWA_HOW_MANY_LIMIT = config.getint("tws", "how_many_limit", fallback=500)
 
 # --- Security Configuration ---
 API_KEY = os.getenv("API_KEY", config.get("security", "API_KEY", fallback=None))
@@ -68,3 +75,35 @@ if getattr(sys, "frozen", False):
     APP_PATH = sys.executable
 else:
     APP_PATH = str(BASE_DIR / "main.py")
+
+# --- Structured Logging Configuration ---
+LOGGING_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "json": {
+            "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
+            "format": "%(asctime)s %(name)s %(levelname)s %(message)s %(pathname)s %(lineno)d",
+        },
+    },
+    "handlers": {
+        "default": {
+            "class": "logging.StreamHandler",
+            "formatter": "json",
+            "level": "INFO",
+        },
+    },
+    "root": {
+        "handlers": ["default"],
+        "level": "INFO",
+    },
+    "loggers": {
+        "uvicorn.error": {
+            "level": "INFO",
+        },
+        "uvicorn.access": {
+            "handlers": [], # Disable uvicorn's default access logger
+            "propagate": True,
+        },
+    },
+}

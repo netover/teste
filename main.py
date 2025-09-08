@@ -64,9 +64,9 @@ def run_server_in_thread(server):
 
 def main():
     """Main entry point for the application."""
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-    )
+    # Apply structured logging configuration
+    logging.config.dictConfig(config.LOGGING_CONFIG)
+
     initial_setup()
 
     server_config = uvicorn.Config(
