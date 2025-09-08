@@ -47,7 +47,7 @@ async def test_poll_job_status_detects_new_job(mocker, service):
 
     service._handle_status_change = AsyncMock()
 
-    await service.poll_and_process_jobs()
+    await service._poll_job_status()
 
     service._handle_status_change.assert_called_once()
     call_args = service._handle_status_change.call_args[0][0]
@@ -84,7 +84,7 @@ async def test_poll_job_status_detects_status_change(mocker, service):
 
     service._handle_status_change = AsyncMock()
 
-    await service.poll_and_process_jobs()
+    await service._poll_job_status()
 
     service._handle_status_change.assert_called_once()
     call_args = service._handle_status_change.call_args[0][0]

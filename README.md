@@ -96,6 +96,12 @@ To build the executable yourself:
     ```
 4.  The final executable will be in the `dist/` directory.
 
+## Deployment Model
+
+This application is designed as a **standalone desktop tool**, not a web service to be deployed in a cloud environment. The primary distribution method is a single executable built with PyInstaller.
+
+Reflecting this deployment model, the project does not use a Continuous Integration (CI) pipeline. The CI workflow was disabled to simplify the development process and focus on its role as a local monitoring tool. All testing and validation are expected to be performed in the local development environment before a build is created.
+
 ## Developer Notes
 
 ### Frontend Build Process
