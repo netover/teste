@@ -4,7 +4,8 @@
   "description": "A dashboard for HCL Workload Automation.",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build:ts": "tsc"
+    "dev": "vite",
+    "build": "vite build"
   },
   "keywords": [
     "hwa",
@@ -13,7 +14,20 @@
   ],
   "author": "",
   "license": "ISC",
+  "dependencies": {
+    "socket.io-client": "^4.7.5",
+    "chart.js": "^4.4.2",
+    "sortablejs": "^1.15.2",
+    "chartjs-adapter-date-fns": "^3.0.0",
+    "date-fns": "^3.3.1",
+    "plotly.js-dist": "^2.29.1",
+    "d3": "^7.8.5",
+    "vis-network": "^9.1.9",
+    "marked": "^12.0.0",
+    "highlight.js": "^11.9.0"
+  },
   "devDependencies": {
-    "typescript": "^5.0.4"
+    "typescript": "^5.3.3",
+    "vite": "^5.1.4"
   }
 }

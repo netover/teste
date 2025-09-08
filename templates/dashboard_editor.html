@@ -10,7 +10,17 @@
 <!-- The dashboard editor UI will be built here by dashboard_editor.js -->
 {% endblock %}
 
+{% set assets = asset('dashboard_editor.ts') %}
+
+{% block styles %}
+    {% if assets.css %}
+        <link rel="stylesheet" href="{{ assets.css }}">
+    {% endif %}
+{% endblock %}
+
 {% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-<script src="/static/js/dashboard_editor.js"></script>
+    {% if assets.vite_client %}
+        <script type="module" src="{{ assets.vite_client }}"></script>
+    {% endif %}
+    <script type="module" src="{{ assets.js }}"></script>
 {% endblock %}

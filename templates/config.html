@@ -34,6 +34,17 @@
 <div id="message-area" class="hidden"></div>
 {% endblock %}
 
+{% set assets = asset('config.ts') %}
+
+{% block styles %}
+    {% if assets.css %}
+        <link rel="stylesheet" href="{{ assets.css }}">
+    {% endif %}
+{% endblock %}
+
 {% block scripts %}
-<script src="/static/js/config.js"></script>
+    {% if assets.vite_client %}
+        <script type="module" src="{{ assets.vite_client }}"></script>
+    {% endif %}
+    <script type="module" src="{{ assets.js }}"></script>
 {% endblock %}

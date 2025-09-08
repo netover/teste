@@ -448,3 +448,88 @@ button[type="submit"]:active { box-shadow: inset 5px 5px 10px var(--shadow-dark)
 .validate-result.info {
     color: var(--text-color);
 }
+
+/* --- Real-time Feature Styles --- */
+
+/* WebSocket Status Indicator */
+#ws-status-indicator {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background-color: #f8f9fa; /* Default light grey */
+    box-shadow: inset 2px 2px 4px rgba(0,0,0,0.2), inset -2px -2px 4px rgba(255,255,255,0.7);
+    transition: background-color 0.5s ease;
+    z-index: 2000;
+}
+#ws-status-indicator.status-connected {
+    background-color: #28a745; /* Green */
+}
+#ws-status-indicator.status-disconnected {
+    background-color: #dc3545; /* Red */
+}
+#ws-status-indicator.status-error {
+    background-color: #ffc107; /* Yellow/Amber */
+}
+
+/* Real-time Alerts Container */
+#alerts-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 350px;
+    z-index: 2001;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.alert {
+    padding: 15px 20px;
+    border-radius: var(--border-radius);
+    color: var(--text-color);
+    background: var(--bg-color);
+    box-shadow: 7px 7px 15px var(--shadow-dark), -7px -7px 15px var(--shadow-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    opacity: 1;
+    transition: opacity 0.5s ease;
+}
+
+.alert-high {
+    border-left: 5px solid var(--color-red);
+}
+.alert-medium {
+    border-left: 5px solid #ffc107;
+}
+.alert-low {
+    border-left: 5px solid var(--color-cyan);
+}
+
+.alert .close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5em;
+    font-weight: bold;
+    color: var(--text-color);
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.2s ease;
+}
+.alert .close-btn:hover {
+    opacity: 1;
+}
+
+/* Animation for real-time updates */
+@keyframes fadeInHighlight {
+    0% { background-color: var(--bg-color); }
+    30% { background-color: #d1e7ff; } /* Light blue highlight */
+    100% { background-color: var(--bg-color); }
+}
+
+.job-stream-card.fade-in {
+    animation: fadeInHighlight 1.5s ease-out;
+}
