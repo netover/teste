@@ -43,7 +43,6 @@ class JobFailurePredictorML:
             "sla_breach_history",
         ]
         MODEL_DIR.mkdir(exist_ok=True)
-        self._load_model()  # Load model on initialization
 
     def train_failure_prediction_model(
         self, historical_data: pd.DataFrame
@@ -90,9 +89,11 @@ class JobFailurePredictorML:
     def predict_job_failure(self, job_data: dict) -> JobFailurePrediction:
         """Predicts the probability of failure for a single job."""
         if not self.failure_model:
-            raise RuntimeError(
-                "Failure prediction model is not loaded. Please train the model first."
-            )
+            self._load_model()
+            if not self.failure_model:
+                raise RuntimeError(
+                    "Failure prediction model is not loaded. Please train the model first."
+                )
 
         features = self._extract_job_features(job_data)
         features_scaled = self.scaler.transform([features])
@@ -149,6 +150,8 @@ class JobFailurePredictorML:
         self, features: list, importance: dict
     ) -> List[RiskFactor]:
         """Identifies the main risk factors for a prediction based on feature importance."""
+        if not importance:
+            return []
         risk_factors = []
         for i, (feature_name, feature_value) in enumerate(
             zip(self.feature_columns, features)

@@ -36,7 +36,6 @@ def mock_workload_history_df():
     )
 
 
-@pytest.mark.integration
 class TestJobFailurePredictor:
     def test_train_failure_model(self, mocker, mock_job_history_df):
         """Tests the training process of the failure predictor."""
@@ -51,18 +50,17 @@ class TestJobFailurePredictor:
 
     def test_predict_job_failure(self, mocker):
         """Tests the prediction method of the failure predictor."""
-        mocker.patch("joblib.load", return_value=mocker.MagicMock())
+        mock_model = mocker.MagicMock()
+        mock_model.predict_proba.return_value = [[0.8, 0.2]]
+        mock_model.predict.return_value = [0]
+        mock_model.feature_importances_ = np.random.rand(
+            len(JobFailurePredictorML().feature_columns)
+        )
+
+        mocker.patch("joblib.load", return_value=mock_model)
         mocker.patch("pathlib.Path.exists", return_value=True)
 
         predictor = JobFailurePredictorML()
-
-        predictor.failure_model.predict_proba = mocker.MagicMock(
-            return_value=[[0.8, 0.2]]
-        )
-        predictor.failure_model.predict = mocker.MagicMock(return_value=[0])
-        predictor.failure_model.feature_importances_ = np.random.rand(
-            len(predictor.feature_columns)
-        )
 
         job_data = {"jobStreamName": "TEST_JOB"}
         prediction = predictor.predict_job_failure(job_data)
@@ -73,7 +71,6 @@ class TestJobFailurePredictor:
         assert prediction.failure_probability == 0.2
 
 
-@pytest.mark.integration
 class TestWorkloadForecaster:
     def test_train_workload_forecast(self, mocker, mock_workload_history_df):
         """Tests the training process of the workload forecaster."""

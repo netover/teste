@@ -11,18 +11,18 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 
 @pytest.fixture
-def service():
-    """Provides a fresh JobMonitoringService instance for each test."""
+def service(redis_client):
+    """Provides a fresh JobMonitoringService instance for each test, with a fake Redis client."""
     service_instance = JobMonitoringService()
-    service_instance.redis_client = AsyncMock()
+    service_instance.redis_client = redis_client
     return service_instance
 
 
 @pytest.fixture
-def manager():
-    """Provides a fresh WebSocketManager instance for each test."""
+def manager(redis_client):
+    """Provides a fresh WebSocketManager instance for each test, with a fake Redis client."""
     manager_instance = WebSocketManager()
-    manager_instance.redis_client = AsyncMock()
+    manager_instance.redis_client = redis_client
     return manager_instance
 
 
