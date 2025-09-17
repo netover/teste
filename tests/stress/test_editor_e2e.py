@@ -1,7 +1,3 @@
-import sys
-import os
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import pytest
 from main import main as run_main_app
@@ -54,7 +50,7 @@ def layout_file_manager():
             os.remove(layout_path)
 
 
-#
+# @pytest.mark.stress
 # def test_editor_functionality(page: Page, layout_file_manager):
 #     """
 #     Tests adding, editing, and saving widgets. Drag-and-drop must be tested manually.

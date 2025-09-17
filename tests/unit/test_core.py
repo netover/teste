@@ -1,7 +1,3 @@
-import sys
-import os
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.core import config
 from pathlib import Path
@@ -25,5 +21,5 @@ def test_config_constants():
     """
     assert config.APP_NAME == "HWA Dashboard"
     assert isinstance(config.SERVER_PORT, int)
-    assert config.BASE_URL == f"http://localhost:{config.SERVER_PORT}"
+    assert config.BASE_URL == f"http://{config.SERVER_HOST}:{config.SERVER_PORT}"
     assert isinstance(config.CORS_ALLOWED_ORIGINS, list)

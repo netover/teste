@@ -34,27 +34,36 @@ async def _initialize_services():
 async def lifespan(app: FastAPI):
     # Startup
     logging.info("Application startup...")
-    try:
-        await _initialize_services()
-    except Exception as e:
-        logging.critical(f"Services failed to initialize after multiple retries: {e}", exc_info=True)
+    monitoring_task = None
+    pubsub_task = None
+    # In testing mode, we don't want to start the full background services
+    if not config.TESTING:
+        try:
+            await _initialize_services()
+        except Exception as e:
+            logging.critical(f"Services failed to initialize after multiple retries: {e}", exc_info=True)
 
-    # Start background tasks
-    pubsub_task = asyncio.create_task(ws_manager.subscribe_to_updates())
-    monitoring_task = asyncio.create_task(job_monitor.start_monitoring())
+        # Start background tasks
+        pubsub_task = asyncio.create_task(ws_manager.subscribe_to_updates())
+        monitoring_task = asyncio.create_task(job_monitor.start_monitoring())
 
     yield
 
     # Shutdown
-    logging.info("Application shutdown...")
-    job_monitor.stop_monitoring()
-    monitoring_task.cancel()
-    pubsub_task.cancel()
-    try:
-        await monitoring_task
-        await pubsub_task
-    except asyncio.CancelledError:
-        logging.info("Background tasks cancelled successfully.")
+    if not config.TESTING:
+        logging.info("Application shutdown...")
+        job_monitor.stop_monitoring()
+        if monitoring_task:
+            monitoring_task.cancel()
+        if pubsub_task:
+            pubsub_task.cancel()
+        try:
+            if monitoring_task:
+                await monitoring_task
+            if pubsub_task:
+                await pubsub_task
+        except asyncio.CancelledError:
+            logging.info("Background tasks cancelled successfully.")
 
 
 # --- App Setup ---

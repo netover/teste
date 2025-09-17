@@ -35,7 +35,7 @@ SERVER_PORT = int(
     os.getenv("SERVER_PORT", config.get("server", "PORT", fallback=63136))
 )
 SERVER_HOST = os.getenv("SERVER_HOST", config.get("server", "HOST", fallback="0.0.0.0"))
-BASE_URL = f"http://localhost:{SERVER_PORT}"
+BASE_URL = f"http://{SERVER_HOST}:{SERVER_PORT}"
 
 # --- HWA Connection Configuration ---
 HWA_HOSTNAME = os.getenv("HWA_HOSTNAME", config.get("tws", "hostname", fallback=None))

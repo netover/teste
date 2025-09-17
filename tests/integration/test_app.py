@@ -5,8 +5,6 @@ from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock
 import json
 
-# Ensure the src directory is in the Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.api_server import app
 from src.api.hwa import get_hwa_client
@@ -46,6 +44,7 @@ def dummy_layout_file():
 # --- Tests ---
 
 
+@pytest.mark.integration
 def test_dashboard_data_endpoint(dummy_config_file):
     """
     Tests the /api/dashboard_data endpoint with a mocked HWAClient.
@@ -83,6 +82,7 @@ def test_dashboard_data_endpoint(dummy_config_file):
 from pathlib import Path
 
 
+@pytest.mark.integration
 def test_get_layout_endpoint(dummy_layout_file):
     """
     Tests the /api/dashboard_layout GET endpoint.
@@ -97,6 +97,7 @@ def test_get_layout_endpoint(dummy_layout_file):
     assert data[0]["id"] == "test_widget"
 
 
+@pytest.mark.integration
 def test_save_layout_endpoint():
     """
     Tests the /api/dashboard_layout POST endpoint.

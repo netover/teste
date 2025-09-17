@@ -4,8 +4,8 @@ from unittest.mock import MagicMock, AsyncMock
 from src.services.monitoring.job_monitor import JobMonitoringService, JobStatusEvent
 from src.services.monitoring.websocket import WebSocketManager
 
-# Mark all tests in this module as asyncio
-pytestmark = pytest.mark.asyncio
+# Mark all tests in this module as asyncio and integration
+pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 # --- Fixtures ---
 

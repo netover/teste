@@ -36,6 +36,7 @@ def mock_workload_history_df():
     )
 
 
+@pytest.mark.integration
 class TestJobFailurePredictor:
     def test_train_failure_model(self, mocker, mock_job_history_df):
         """Tests the training process of the failure predictor."""
@@ -72,6 +73,7 @@ class TestJobFailurePredictor:
         assert prediction.failure_probability == 0.2
 
 
+@pytest.mark.integration
 class TestWorkloadForecaster:
     def test_train_workload_forecast(self, mocker, mock_workload_history_df):
         """Tests the training process of the workload forecaster."""
