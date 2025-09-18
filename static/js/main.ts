@@ -127,14 +127,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const fetchDashboardData = async (): Promise<boolean> => {
-        console.log("Fetching dashboard data...");
         if (jobStreamsGrid && !jobStreamsGrid.hasChildNodes()) loadingIndicator.classList.remove('hidden');
         errorDisplay.classList.add('hidden');
 
         try {
             const response = await fetch('/api/dashboard_data');
             const data: ApiData = await response.json();
-            console.log("Dashboard data received:", data);
             loadingIndicator.classList.add('hidden');
             if ((data as any).error) throw new Error((data as any).error);
 
@@ -155,7 +153,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const renderJobStreams = (jobStreams: JobStream[]): void => {
-        console.log("Rendering job streams:", jobStreams);
         if (!jobStreamsGrid) return;
         jobStreamsGrid.innerHTML = '';
         if (jobStreams.length === 0) {

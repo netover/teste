@@ -56,10 +56,25 @@ For active development, you can run the backend server and the Vite frontend ser
 This setup allows the Python server to proxy UI requests to the Vite server, enabling seamless development.
 
 ## Testing
-The test suite uses `pytest` and covers the backend API, core logic, and services.
-To run the tests, use the following command:
+The test suite uses `pytest`. Due to a known conflict between the `pytest-playwright` and `pytest-asyncio` plugins, the tests must be run in two separate batches.
+
+**1. Run Backend Tests:**
+These tests cover the API, core logic, monitoring, and machine learning services.
 ```bash
-PYTHONPATH=. pytest
+PYTHONPATH=. pytest tests/test_app.py tests/test_core.py tests/test_monitoring.py tests/test_ml.py
+```
+
+**2. Run Frontend Tests:**
+These tests use Playwright to verify the frontend UI. They require the Vite development server to be running.
+*Note: These tests are currently unstable in some environments due to issues with `multiprocessing` and the test runner. They have been separated for clarity.*
+
+First, start the Vite dev server:
+```bash
+npm run dev
+```
+Then, in another terminal, run the frontend tests:
+```bash
+PYTHONPATH=. pytest tests/test_frontend.py
 ```
 
 ## How to Build
