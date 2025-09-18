@@ -1,13 +1,9 @@
 import { resolve } from 'path';
 
 export default {
-  // Set the root to the static directory, where the frontend source files are.
-  root: 'static',
-
   build: {
-    // This path is relative to the `root` option.
-    // `../dist` will place the output in `<project_root>/dist`
-    outDir: '../dist',
+    // Output directory is relative to the project root.
+    outDir: 'dist',
     emptyOutDir: true,
 
     // Generate a manifest file for the backend to read.
@@ -28,6 +24,8 @@ export default {
     port: 5173,
     // Host on all interfaces to be accessible from inside the test container
     host: '0.0.0.0',
+    // Enable CORS to allow the main backend to fetch scripts from this server.
+    cors: true,
     // Proxy API requests to the Python backend running on port 63136.
     proxy: {
       '/api': {

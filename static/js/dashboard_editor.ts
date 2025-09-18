@@ -1,8 +1,4 @@
 import Sortable from 'sortablejs';
-import { createModal } from './ui_helpers.js';
-import '../css/style.css';
-
-import Sortable from 'sortablejs';
 import { createModal } from './ui_helpers.ts';
 import '../css/style.css';
 

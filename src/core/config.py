@@ -12,7 +12,11 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 CONFIG_DIR = BASE_DIR / "config"
 CONFIG_FILE = CONFIG_DIR / "config.ini"
-LAYOUT_FILE = BASE_DIR / "dashboard_layout.json"
+layout_file_path = os.getenv("LAYOUT_FILE_OVERRIDE")
+if layout_file_path:
+    LAYOUT_FILE = Path(layout_file_path)
+else:
+    LAYOUT_FILE = BASE_DIR / "dashboard_layout.json"
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 ICON_FILE = BASE_DIR / "icon.png"

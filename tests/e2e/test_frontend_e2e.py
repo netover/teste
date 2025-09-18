@@ -1,7 +1,7 @@
 import pytest
 from playwright.sync_api import Page, expect
 import json
-from pathlib import Path
+from src.core.config import BASE_DIR
 
 # Mock data to be returned by the API during tests
 MOCK_DASHBOARD_DATA = {
@@ -19,28 +19,19 @@ MOCK_DASHBOARD_DATA = {
 }
 
 @pytest.mark.e2e
-def test_dashboard_loads_and_displays_data(page: Page, backend_server, frontend_server, tmp_path: Path, monkeypatch):
+def test_dashboard_loads_and_displays_data(page: Page, backend_server):
     """
     Tests that the main dashboard loads, mocks the data API, and displays the data correctly.
-    This test relies on the backend and frontend servers being run by pytest-xprocess.
+    The test layout is now loaded via an environment variable in the conftest.py server fixture.
     """
-    # Create a temporary layout file for the test to ensure a predictable state
-    layout_path = tmp_path / "dashboard_layout.json"
-    test_layout = [
-        {"id": "widget_abend", "type": "summary_count", "api_metric": "abend_count", "label": "Abend"},
-        {"id": "widget_running", "type": "summary_count", "api_metric": "running_count", "label": "Running"},
-    ]
-    layout_path.write_text(json.dumps(test_layout))
-
-    # Monkeypatch the config to use our temporary layout file
-    from src.core import config
-    monkeypatch.setattr(config, "LAYOUT_FILE", layout_path)
-
     # Intercept the API call and return our mock data
     page.route("**/api/dashboard_data", lambda route: route.fulfill(json=MOCK_DASHBOARD_DATA))
 
     # Go to the page
     page.goto("http://localhost:63136/")
+
+    # For debugging: print the page content to see what's being rendered
+    print(page.content())
 
     # Assert that the data is displayed correctly
     expect(page.locator("#widget_abend .widget-value")).to_have_text("1")
@@ -48,8 +39,9 @@ def test_dashboard_loads_and_displays_data(page: Page, backend_server, frontend_
     expect(page.locator("#job-streams-grid .job-stream-card")).to_have_count(2)
     expect(page.locator("#workstations-grid .workstation-card")).to_have_count(1)
 
+
 @pytest.mark.e2e
-def test_cancel_job_flow(page: Page, backend_server, frontend_server):
+def test_cancel_job_flow(page: Page, backend_server):
     """
     Tests the flow for cancelling a job from a modal.
     """

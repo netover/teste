@@ -87,7 +87,8 @@ app.add_middleware(
 )
 
 # --- Static Files ---
-app.mount("/static", StaticFiles(directory=config.STATIC_DIR), name="static")
+if config.APP_ENV == "production":
+    app.mount("/dist", StaticFiles(directory=config.BASE_DIR / "dist"), name="dist")
 
 # --- API Routers ---
 app.include_router(pages.router)
