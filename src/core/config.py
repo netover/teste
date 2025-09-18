@@ -70,7 +70,19 @@ HWA_HOW_MANY_LIMIT = config.getint("tws", "how_many_limit", fallback=500)
 
 # --- Security Configuration ---
 API_KEY = os.getenv("API_KEY", config.get("security", "API_KEY", fallback=None))
-CORS_ALLOWED_ORIGINS = ["*"]  # Consider making this configurable
+
+# CORS Configuration
+_cors_origins_str = os.getenv("CORS_ALLOWED_ORIGINS") or config.get(
+    "server", "CORS_ALLOWED_ORIGINS", fallback=""
+)
+if _cors_origins_str:
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in _cors_origins_str.split(",")]
+elif APP_ENV == "development":
+    # In development mode, allow all origins for convenience with Vite.
+    CORS_ALLOWED_ORIGINS = ["*"]
+else:
+    # In production, default to a secure empty list, forcing explicit configuration.
+    CORS_ALLOWED_ORIGINS = []
 
 # --- Determine Application Path for Startup ---
 import sys

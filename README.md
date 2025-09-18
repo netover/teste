@@ -56,26 +56,26 @@ For active development, you can run the backend server and the Vite frontend ser
 This setup allows the Python server to proxy UI requests to the Vite server, enabling seamless development.
 
 ## Testing
-The test suite uses `pytest`. Due to a known conflict between the `pytest-playwright` and `pytest-asyncio` plugins, the tests must be run in two separate batches.
 
-**1. Run Backend Tests:**
-These tests cover the API, core logic, monitoring, and machine learning services.
-```bash
-PYTHONPATH=. pytest tests/test_app.py tests/test_core.py tests/test_monitoring.py tests/test_ml.py
-```
+The test suite uses `pytest` and is organized into two groups: backend tests (unit and integration) and frontend End-to-End (E2E) tests.
 
-**2. Run Frontend Tests:**
-These tests use Playwright to verify the frontend UI. They require the Vite development server to be running.
-*Note: These tests are currently unstable in some environments due to issues with `multiprocessing` and the test runner. They have been separated for clarity.*
+**Important:** Due to a fundamental conflict between the `pytest-asyncio` (required for backend tests) and `pytest-playwright` (required for E2E tests) plugins, the tests **must** be run in two separate invocations using pytest markers.
 
-First, start the Vite dev server:
+### 1. Run Backend Tests
+These tests cover the API, core logic, and services. They run quickly and do not require any servers to be running.
 ```bash
-npm run dev
+pytest -m "not e2e"
 ```
-Then, in another terminal, run the frontend tests:
+This command runs all tests that are *not* marked as `e2e`.
+
+### 2. Run Frontend E2E Tests
+These tests use Playwright to launch a browser and interact with the application. The test runner (`pytest-xprocess`) will automatically start and stop the required backend and frontend Vite servers.
 ```bash
-PYTHONPATH=. pytest tests/test_frontend.py
+pytest -m "e2e"
 ```
+This command runs *only* the tests marked as `e2e`.
+
+*Note: While the test framework is now stable, the E2E tests are currently failing, indicating bugs in the frontend application code that need to be addressed.*
 
 ## How to Build
 To build the executable for distribution:

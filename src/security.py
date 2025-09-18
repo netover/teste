@@ -47,14 +47,12 @@ def get_api_key(api_key: str = Security(api_key_header)):
     FastAPI dependency to verify the X-API-Key header.
     """
     if not config.API_KEY:
-        # If no API_KEY is configured, security is disabled.
-        # This is useful for local development but should be logged as a warning.
-        import logging
-
-        logging.warning(
-            "API_KEY is not set in config. Security for protected endpoints is disabled."
+        # If no API_KEY is configured, the application is misconfigured.
+        # Raise an internal server error to prevent insecure operation.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Application is not configured with an API_KEY. Security is not functional.",
         )
-        return
 
     if api_key == config.API_KEY:
         return api_key

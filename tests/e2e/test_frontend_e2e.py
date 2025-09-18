@@ -1,100 +1,82 @@
-# import pytest
-# from playwright.sync_api import Page, expect
-# from main import main as run_main_app
-# import time
-# import json
-# import multiprocessing
-# import os
+import pytest
+from playwright.sync_api import Page, expect
+import json
+from pathlib import Path
 
-# # Fixture to run the main application in a background process
-# def run_app():
-#     # Force the app to run in console mode for the test environment
-#     os.environ["FORCE_CONSOLE_MODE"] = "1"
-#     # Run the app in testing mode to use the Vite dev server
-#     run_main_app(testing=True)
+# Mock data to be returned by the API during tests
+MOCK_DASHBOARD_DATA = {
+    "abend_count": 1,
+    "running_count": 1,
+    "total_job_stream_count": 2,
+    "total_workstation_count": 1,
+    "job_streams": [
+        {"id": "job123", "jobStreamName": "CRITICAL_JOB", "workstationName": "CPU1", "status": "ABEND"},
+        {"id": "job456", "jobStreamName": "DAILY_REPORT", "workstationName": "CPU1", "status": "EXEC"},
+    ],
+    "workstations": [{"name": "CPU1", "type": "Master", "status": "LINKED"}],
+    "jobs_abend": [{"id": "job123", "jobStreamName": "CRITICAL_JOB", "workstationName": "CPU1", "status": "ABEND"}],
+    "jobs_running": [{"id": "job456", "jobStreamName": "DAILY_REPORT", "workstationName": "CPU1", "status": "EXEC"}],
+}
 
-# @pytest.fixture(scope="session", autouse=True)
-# def live_server():
-#     # Start the Python backend server
-#     backend_server = multiprocessing.Process(target=run_app)
-#     backend_server.start()
+@pytest.mark.e2e
+def test_dashboard_loads_and_displays_data(page: Page, backend_server, frontend_server, tmp_path: Path, monkeypatch):
+    """
+    Tests that the main dashboard loads, mocks the data API, and displays the data correctly.
+    This test relies on the backend and frontend servers being run by pytest-xprocess.
+    """
+    # Create a temporary layout file for the test to ensure a predictable state
+    layout_path = tmp_path / "dashboard_layout.json"
+    test_layout = [
+        {"id": "widget_abend", "type": "summary_count", "api_metric": "abend_count", "label": "Abend"},
+        {"id": "widget_running", "type": "summary_count", "api_metric": "running_count", "label": "Running"},
+    ]
+    layout_path.write_text(json.dumps(test_layout))
 
-#     # Start the Vite dev server
-#     vite_process = multiprocessing.Process(
-#         target=lambda: os.system("./node_modules/vite/bin/vite.js dev"),
-#     )
-#     vite_process.start()
+    # Monkeypatch the config to use our temporary layout file
+    from src.core import config
+    monkeypatch.setattr(config, "LAYOUT_FILE", layout_path)
 
-#     # Give the servers time to start up
-#     time.sleep(10) # Increased sleep time to allow both servers to start
-#     yield
+    # Intercept the API call and return our mock data
+    page.route("**/api/dashboard_data", lambda route: route.fulfill(json=MOCK_DASHBOARD_DATA))
 
-#     # Teardown
-#     backend_server.terminate()
-#     backend_server.join()
-#     vite_process.terminate()
-#     vite_process.join()
+    # Go to the page
+    page.goto("http://localhost:63136/")
 
-# MOCK_DASHBOARD_DATA = {
-#     "abend_count": 1, "running_count": 1, "total_job_stream_count": 2,
-#     "total_workstation_count": 1,
-#     "job_streams": [
-#         {"id": "job123", "jobStreamName": "CRITICAL_JOB", "workstationName": "CPU1", "status": "ABEND"},
-#         {"id": "job456", "jobStreamName": "DAILY_REPORT", "workstationName": "CPU1", "status": "EXEC"},
-#     ],
-#     "workstations": [{"name": "CPU1", "type": "Master", "status": "LINKED"}],
-#     "jobs_abend": [{"id": "job123", "jobStreamName": "CRITICAL_JOB", "workstationName": "CPU1", "status": "ABEND"}],
-#     "jobs_running": [{"id": "job456", "jobStreamName": "DAILY_REPORT", "workstationName": "CPU1", "status": "EXEC"}],
-# }
+    # Assert that the data is displayed correctly
+    expect(page.locator("#widget_abend .widget-value")).to_have_text("1")
+    expect(page.locator("#widget_running .widget-value")).to_have_text("1")
+    expect(page.locator("#job-streams-grid .job-stream-card")).to_have_count(2)
+    expect(page.locator("#workstations-grid .workstation-card")).to_have_count(1)
 
-# @pytest.mark.e2e
-# def test_dashboard_loads_and_displays_data(page: Page):
-#     """
-#     Tests that the main dashboard loads, mocks the data API, and displays the data correctly.
-#     """
-#     layout_path = "dashboard_layout.json"
-#     if os.path.exists(layout_path):
-#         os.remove(layout_path)
+@pytest.mark.e2e
+def test_cancel_job_flow(page: Page, backend_server, frontend_server):
+    """
+    Tests the flow for cancelling a job from a modal.
+    """
+    # Mock the API endpoints needed for this test
+    page.route("**/api/dashboard_data", lambda route: route.fulfill(json=MOCK_DASHBOARD_DATA))
+    page.route("**/api/plan/current/job/job123/action/cancel",
+               lambda route: route.fulfill(json={"success": True, "message": "Cancel command sent."}))
 
-#     test_layout = [
-#         {"id": "widget_abend", "type": "summary_count", "api_metric": "abend_count"},
-#         {"id": "widget_running", "type": "summary_count", "api_metric": "running_count"},
-#     ]
-#     with open(layout_path, "w") as f:
-#         json.dump(test_layout, f)
+    # Go to the page
+    page.goto("http://localhost:63136/")
 
-#     page.route("**/api/dashboard_data", lambda route: route.fulfill(json=MOCK_DASHBOARD_DATA))
-#     page.goto("http://localhost:63136/")
+    # Wait for the job stream card to be visible
+    expect(page.locator('.job-stream-card[data-job-id="job123"]')).to_be_visible()
 
-#     expect(page.locator("#job-streams-grid .job-stream-card").first).to_be_visible()
+    # Click the card to open the modal
+    page.locator('.job-stream-card[data-job-id="job123"]').click()
 
-#     expect(page.locator("#widget_abend .widget-value")).to_have_text("1")
-#     expect(page.locator("#widget_running .widget-value")).to_have_text("1")
-#     expect(page.locator("#job-streams-grid .job-stream-card")).to_have_count(2)
-#     expect(page.locator("#workstations-grid .workstation-card")).to_have_count(1)
+    # Check that the modal is visible and contains the correct job name
+    modal = page.locator(".modal-content")
+    expect(modal).to_be_visible()
+    expect(modal).to_contain_text("CRITICAL_JOB")
 
-#     os.remove(layout_path)
+    # Accept the confirmation dialog that pops up when cancelling
+    page.once("dialog", lambda dialog: dialog.accept())
 
-# @pytest.mark.e2e
-# def test_cancel_job_flow(page: Page):
-#     """
-#     Tests the flow for cancelling a job from a modal.
-#     """
-#     page.route("**/api/dashboard_data", lambda route: route.fulfill(json=MOCK_DASHBOARD_DATA))
-#     page.route("**/api/plan/current/job/job123/action/cancel",
-#                lambda route: route.fulfill(json={"success": True, "message": "Cancel command sent."}))
+    # Click the cancel button in the modal
+    modal.locator('button[data-action="cancel"]').click()
 
-#     page.goto("http://localhost:63136/")
-
-#     expect(page.locator("#job-streams-grid .job-stream-card").first).to_be_visible()
-
-#     page.locator('.job-stream-card[data-job-id="job123"]').click()
-
-#     modal = page.locator(".modal-content")
-#     expect(modal).to_be_visible()
-#     expect(modal).to_contain_text("CRITICAL_JOB")
-
-#     page.once("dialog", lambda dialog: dialog.accept())
-#     modal.locator('button[data-action="cancel"]').click()
-
-#     expect(modal).not_to_be_visible()
+    # Assert that the modal is no longer visible
+    expect(modal).not_to_be_visible()
