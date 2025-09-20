@@ -34,6 +34,35 @@ def encrypt_password(password: str, key: bytes) -> bytes:
     return encrypted_password
 
 
+from fastapi import Security, HTTPException, status
+from fastapi.security import APIKeyHeader
+
+from src.core import config
+
+api_key_header = APIKeyHeader(name="X-API-Key")
+
+
+def get_api_key(api_key: str = Security(api_key_header)):
+    """
+    FastAPI dependency to verify the X-API-Key header.
+    """
+    if not config.API_KEY:
+        # If no API_KEY is configured, the application is misconfigured.
+        # Raise an internal server error to prevent insecure operation.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Application is not configured with an API_KEY. Security is not functional.",
+        )
+
+    if api_key == config.API_KEY:
+        return api_key
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API Key",
+        )
+
+
 def decrypt_password(encrypted_password: bytes, key: bytes) -> str:
     """
     Decrypts an encrypted password using the provided key.

@@ -7,7 +7,7 @@ from slowapi.util import get_remote_address
 
 from src.core import config
 from src.hwa_connector import HWAClient
-from src.security import load_key, decrypt_password
+from src.security import get_api_key, load_key, decrypt_password
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -100,7 +100,7 @@ async def get_dashboard_data(
     }
 
 
-@router.get("/api/oql", tags=["HWA"])
+@router.get("/api/oql", tags=["HWA"], dependencies=[Depends(get_api_key)])
 @limiter.limit("60/minute")
 async def execute_oql(
     request: Request,
@@ -141,6 +141,7 @@ async def _job_action_endpoint(
 @router.put(
     "/api/plan/{plan_id}/job/{job_id}/action/{action}",
     tags=["HWA"],
+    dependencies=[Depends(get_api_key)],
 )
 @limiter.limit("10/minute")
 async def job_action(
