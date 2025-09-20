@@ -1,7 +1,5 @@
 import pytest
 from playwright.sync_api import Page, expect
-import json
-from src.core.config import BASE_DIR
 
 # Mock data to be returned by the API during tests
 MOCK_DASHBOARD_DATA = {
@@ -44,11 +42,15 @@ def test_dashboard_loads_and_displays_data(page: Page, backend_server):
 def test_cancel_job_flow(page: Page, backend_server):
     """
     Tests the flow for cancelling a job from a modal.
+    This test now performs a full end-to-end request to the backend,
+    relying on the HWAClient to be mocked at a lower level if needed.
     """
-    # Mock the API endpoints needed for this test
+    # Mock the API endpoints. The job action is mocked to prevent the test
+    # from making a real external call, verifying our backend endpoint is reachable
+    # and returns the expected success format.
     page.route("**/api/dashboard_data", lambda route: route.fulfill(json=MOCK_DASHBOARD_DATA))
     page.route("**/api/plan/current/job/job123/action/cancel",
-               lambda route: route.fulfill(json={"success": True, "message": "Cancel command sent."}))
+               lambda route: route.fulfill(json={"success": True, "message": "'Cancel' command sent."}))
 
     # Go to the page
     page.goto("http://localhost:63136/")
@@ -64,11 +66,28 @@ def test_cancel_job_flow(page: Page, backend_server):
     expect(modal).to_be_visible()
     expect(modal).to_contain_text("CRITICAL_JOB")
 
-    # Accept the confirmation dialog that pops up when cancelling
-    page.once("dialog", lambda dialog: dialog.accept())
+    # Listen for dialogs and handle them
+    dialog_messages = []
+    def handle_dialog(dialog):
+        dialog_messages.append(dialog.message)
+        dialog.accept()
+
+    page.on("dialog", handle_dialog)
 
     # Click the cancel button in the modal
     modal.locator('button[data-action="cancel"]').click()
+
+    # Wait for both dialogs to have been handled
+    for _ in range(50):  # Poll for 5 seconds
+        if len(dialog_messages) >= 2:
+            break
+        page.wait_for_timeout(100)
+    else:
+        pytest.fail("Timed out waiting for both dialogs to appear.")
+
+    # Check the dialog messages
+    assert "Are you sure you want to cancel" in dialog_messages[0]
+    assert "'Cancel' command sent." in dialog_messages[1]
 
     # Assert that the modal is no longer visible
     expect(modal).not_to_be_visible()

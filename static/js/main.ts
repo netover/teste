@@ -234,7 +234,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const response = await fetch(`/api/plan/${planId}/job/${jobId}/action/${action}`, {
                 method: 'PUT',
-                headers: { 'X-API-Key': 'your_api_key_here_if_needed' }
             });
             const result = await response.json();
             if (!response.ok) throw new Error(result.detail || `Failed to send ${action} command.`);

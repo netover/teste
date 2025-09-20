@@ -1,7 +1,7 @@
 import os
+import sys
 import configparser
 from pathlib import Path
-import logging.config
 from dotenv import load_dotenv
 
 # Load environment variables from a .env file if it exists
@@ -72,9 +72,6 @@ MONITORING_POLL_INTERVAL = config.getint(
 # --- HWA Client Configuration ---
 HWA_HOW_MANY_LIMIT = config.getint("tws", "how_many_limit", fallback=500)
 
-# --- Security Configuration ---
-API_KEY = os.getenv("API_KEY", config.get("security", "API_KEY", fallback=None))
-
 # CORS Configuration
 _cors_origins_str = os.getenv("CORS_ALLOWED_ORIGINS") or config.get(
     "server", "CORS_ALLOWED_ORIGINS", fallback=""
@@ -89,8 +86,6 @@ else:
     CORS_ALLOWED_ORIGINS = []
 
 # --- Determine Application Path for Startup ---
-import sys
-
 if getattr(sys, "frozen", False):
     APP_PATH = sys.executable
 else:

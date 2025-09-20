@@ -4,7 +4,6 @@ from typing import Dict, Any
 from celery.result import AsyncResult
 
 from src.services.ml import models
-from src.security import get_api_key
 from src.services.ml.predictor import job_predictor
 from src.services.ml.forecasting import workload_forecaster
 from src.tasks.ml_training import train_all_models_task
@@ -15,7 +14,7 @@ router = APIRouter(
 )
 
 
-@router.post("/train", status_code=202, dependencies=[Depends(get_api_key)])
+@router.post("/train", status_code=202)
 def dispatch_model_training() -> Dict[str, str]:
     """
     Dispatches a background task to train all ML models.
@@ -30,7 +29,7 @@ def dispatch_model_training() -> Dict[str, str]:
         raise HTTPException(status_code=500, detail="Failed to dispatch training task.")
 
 
-@router.get("/train/status/{task_id}", dependencies=[Depends(get_api_key)])
+@router.get("/train/status/{task_id}")
 def get_training_status(task_id: str) -> Dict[str, Any]:
     """
     Checks the status of a model training task.
