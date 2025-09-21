@@ -1,6 +1,6 @@
 import pytest
 from pytest_httpserver import HTTPServer
-from src.hwa_connector import HWAClient, HWAAuthenticationError
+from src.hwa_connector import HWAClient, HWAAPIError, HWAAuthenticationError
 
 # A sample successful JSON response for a job stream query
 SAMPLE_JS_RESPONSE = [

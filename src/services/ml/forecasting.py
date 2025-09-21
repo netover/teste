@@ -123,8 +123,6 @@ class WorkloadForecaster:
 
     def _save_model(self, model: Prophet, model_key: str):
         """Saves a trained Prophet model to disk."""
-        # Ensure the directory exists just before saving
-        FORECAST_MODEL_DIR.mkdir(exist_ok=True)
         model_path = FORECAST_MODEL_DIR / f"{model_key}.joblib"
         logging.info(f"Saving forecast model to {model_path}")
         joblib.dump(model, model_path)

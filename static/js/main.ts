@@ -126,49 +126,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     };
 
-    const fetchDashboardData = async (): Promise<ApiData> => {
+    const fetchDashboardData = async (): Promise<boolean> => {
+        if (jobStreamsGrid && !jobStreamsGrid.hasChildNodes()) loadingIndicator.classList.remove('hidden');
+        errorDisplay.classList.add('hidden');
+
         try {
             const response = await fetch('/api/dashboard_data');
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Failed to fetch dashboard data: ${errorText}`);
-            }
             const data: ApiData = await response.json();
+            loadingIndicator.classList.add('hidden');
             if ((data as any).error) throw new Error((data as any).error);
-            return data;
-        } catch (error) {
-            // showError is called in the main init block now
-            throw error;
-        }
-    };
 
-    /**
-     * A generic function to render a grid of items.
-     * @param container The HTMLElement to render the grid into.
-     * @param items The array of items to render.
-     * @param emptyMessage The message to display if the items array is empty.
-     * @param renderItem A function that takes an item and returns its HTMLElement representation.
-     */
-    const renderGrid = <T>(
-        container: HTMLElement,
-        items: T[],
-        emptyMessage: string,
-        renderItem: (item: T) => HTMLElement
-    ): void => {
-        if (!container) return;
-        container.innerHTML = '';
-        if (!items || items.length === 0) {
-            container.innerHTML = `<p>${emptyMessage}</p>`;
-            return;
+            const hasChanged = JSON.stringify(apiData) !== JSON.stringify(data);
+            apiData = data;
+
+            if (hasChanged) {
+                renderWidgets();
+                renderJobStreams(data.job_streams || []);
+                renderWorkstations(data.workstations || []);
+            }
+            return hasChanged;
+        } catch (error) {
+            loadingIndicator.classList.add('hidden');
+            showError((error as Error).message);
+            return false;
         }
-        items.forEach(item => {
-            const element = renderItem(item);
-            container.appendChild(element);
-        });
     };
 
     const renderJobStreams = (jobStreams: JobStream[]): void => {
-        renderGrid(jobStreamsGrid, jobStreams, 'No job streams found.', js => {
+        if (!jobStreamsGrid) return;
+        jobStreamsGrid.innerHTML = '';
+        if (jobStreams.length === 0) {
+            jobStreamsGrid.innerHTML = '<p>No job streams found.</p>';
+            return;
+        }
+        jobStreams.forEach(js => {
             const card = document.createElement('div');
             card.className = 'job-stream-card';
             card.dataset.jobId = js.id;
@@ -183,17 +174,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <p><strong>Start Time:</strong> ${js.startTime ? new Date(js.startTime).toLocaleString() : 'N/A'}</p>
             `;
             card.addEventListener('click', () => createJobDetailWindow(js));
-            return card;
+            jobStreamsGrid.appendChild(card);
         });
     };
 
     const renderWorkstations = (workstations: any[]): void => {
-        renderGrid(workstationsGrid, workstations, 'No workstations found.', ws => {
+        if (!workstationsGrid) return;
+        workstationsGrid.innerHTML = '';
+        if (workstations.length === 0) {
+            workstationsGrid.innerHTML = '<p>No workstations found.</p>';
+            return;
+        }
+        workstations.forEach(ws => {
             const card = document.createElement('div');
             card.className = 'workstation-card';
             const statusClass = getStatusClass(ws.status);
             card.innerHTML = `<h3>${ws.name || 'N/A'}</h3><p><strong>Type:</strong> ${ws.type || 'N/A'}</p><p><strong>Status:</strong> <span class="status ${statusClass}">${ws.status || 'N/A'}</span></p>`;
-            return card;
+            workstationsGrid.appendChild(card);
         });
     };
 
@@ -262,47 +259,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     // --- Application Initialization ---
-    const initializeDashboard = async () => {
-        try {
-            loadingIndicator.classList.remove('hidden');
-            errorDisplay.classList.add('hidden');
+    dashboardLayout = await fetchLayout();
+    sortLayout();
+    renderWidgets();
+    initDragAndDrop();
+    await fetchDashboardData(); // Fetch initial data immediately for faster load
+    adaptivePoller.start();
+    setupShutdown();
 
-            // Fetch layout and initial data concurrently
-            const [layout, initialData] = await Promise.all([
-                fetchLayout(),
-                fetchDashboardData()
-            ]);
+    // --- WebSocket Initialization ---
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${window.location.host}/ws/monitoring`;
+    const realtimeMonitoring = new RealtimeMonitoring(wsUrl);
+    realtimeMonitoring.connect();
 
-            // Set global state
-            dashboardLayout = layout;
-            apiData = initialData;
-
-            // Initial Render
-            sortLayout();
-            renderWidgets();
-            renderJobStreams(apiData.job_streams || []);
-            renderWorkstations(apiData.workstations || []);
-            initDragAndDrop();
-
-            setupShutdown();
-
-            // --- WebSocket Initialization ---
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${wsProtocol}//${window.location.host}/ws/monitoring`;
-            const realtimeMonitoring = new RealtimeMonitoring(wsUrl);
-            realtimeMonitoring.connect();
-            document.addEventListener('websocket:connected', () => adaptivePoller.stop());
-
-            // Start polling only after a successful initial load
-            adaptivePoller.start();
-
-        } catch (error) {
-            showError(`Failed to initialize dashboard: ${(error as Error).message}`);
-        } finally {
-            loadingIndicator.classList.add('hidden');
-        }
-    };
-
-    initializeDashboard();
+    document.addEventListener('websocket:connected', () => adaptivePoller.stop());
     document.addEventListener('job-action', handleJobAction);
 });
