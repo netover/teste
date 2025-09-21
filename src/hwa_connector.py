@@ -36,6 +36,7 @@ class HWAClient:
         username: str,
         password: Optional[str],
         verify_ssl: bool = False,
+        protocol: str = "https",
     ):
         if not all([hostname, port, username]):
             raise ValueError("Hostname, port, and username are required to initialize HWAClient.")
@@ -45,7 +46,7 @@ class HWAClient:
         self.username = username
         self.password = password
         self.verify_ssl = verify_ssl
-        self.base_url = f"https://{self.hostname}:{self.port}/twsd/v1"
+        self.base_url = f"{protocol}://{self.hostname}:{self.port}/twsd/v1"
         self.client = None
         self.plan = PlanService(self)
         self.model = ModelService(self)

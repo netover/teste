@@ -13,7 +13,11 @@ def train_all_models_task():
         # The training service is now synchronous, so we can call it directly.
         result = model_trainer.trigger_all_training()
         logging.info("Celery task 'train_all_models_task' finished successfully.")
-        return result
+        # Convert Pydantic models to dicts for JSON serialization
+        serializable_result = {
+            "failure_predictor": result["failure_predictor"].model_dump()
+        }
+        return serializable_result
     except Exception as e:
         logging.error(
             f"Error in Celery task 'train_all_models_task': {e}", exc_info=True

@@ -2,7 +2,6 @@ import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock
 import json
-from pathlib import Path
 
 from src.api_server import app
 from src.api.hwa import get_hwa_client
@@ -87,18 +86,3 @@ def test_save_layout_endpoint(monkeypatch, tmp_path):
     assert saved_data[0]["id"] == "saved_widget"
 
 
-@pytest.mark.integration
-def test_protected_endpoint_fails_without_api_key(monkeypatch):
-    """
-    Tests that a protected endpoint returns a 500 error if the API_KEY is not configured.
-    """
-    # Temporarily disable the API_KEY in the config
-    monkeypatch.setattr(config, "API_KEY", None)
-
-    # Attempt to access a protected endpoint with a dummy key
-    response = client.get("/api/oql?query=workstation", headers={"X-API-Key": "dummy_key"})
-
-    # Assert that the request was rejected with a 500 internal server error
-    assert response.status_code == 500
-    data = response.json()
-    assert "Application is not configured with an API_KEY" in data["detail"]

@@ -178,6 +178,8 @@ class JobFailurePredictorML:
 
     def _save_model(self):
         """Saves the trained models and scaler to disk."""
+        # Ensure the directory exists just before saving
+        MODEL_DIR.mkdir(exist_ok=True)
         logging.info(f"Saving models to {MODEL_DIR}...")
         joblib.dump(self.failure_model, FAILURE_MODEL_PATH)
         joblib.dump(self.scaler, SCALER_PATH)

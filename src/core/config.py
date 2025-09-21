@@ -1,7 +1,7 @@
 import os
+import sys
 import configparser
 from pathlib import Path
-import logging.config
 from dotenv import load_dotenv
 
 # Load environment variables from a .env file if it exists
@@ -89,8 +89,6 @@ else:
     CORS_ALLOWED_ORIGINS = []
 
 # --- Determine Application Path for Startup ---
-import sys
-
 if getattr(sys, "frozen", False):
     APP_PATH = sys.executable
 else:
