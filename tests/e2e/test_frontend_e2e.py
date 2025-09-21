@@ -1,5 +1,7 @@
 import pytest
 from playwright.sync_api import Page, expect
+import json
+from src.core.config import BASE_DIR
 
 # Mock data to be returned by the API during tests
 MOCK_DASHBOARD_DATA = {
