@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from typing import Dict, Set
-from fastapi import WebSocket
+from fastapi import WebSocket, WebSocketDisconnect
 import redis.asyncio as redis
 from src.core import config
 

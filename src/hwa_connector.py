@@ -36,7 +36,6 @@ class HWAClient:
         username: str,
         password: Optional[str],
         verify_ssl: bool = False,
-        protocol: str = "https",
     ):
         if not all([hostname, port, username]):
             raise ValueError("Hostname, port, and username are required to initialize HWAClient.")
@@ -46,7 +45,7 @@ class HWAClient:
         self.username = username
         self.password = password
         self.verify_ssl = verify_ssl
-        self.base_url = f"{protocol}://{self.hostname}:{self.port}/twsd/v1"
+        self.base_url = f"https://{self.hostname}:{self.port}/twsd/v1"
         self.client = None
         self.plan = PlanService(self)
         self.model = ModelService(self)
@@ -80,12 +79,12 @@ class HWAClient:
             logging.error(f"HTTP error: {http_err.response.status_code} for {http_err.request.url}. Response: {http_err.response.text}")
             if http_err.response.status_code in (401, 403):
                 raise HWAAuthenticationError(f"Authentication failed: {http_err.response.status_code}") from http_err
-            # For other errors, include the response text for better debugging
-            raise HWAAPIError(
-                f"API returned an error: {http_err.response.status_code}",
-                status_code=http_err.response.status_code,
-                response_text=http_err.response.text,
-            ) from http_err
+            else:
+                raise HWAAPIError(
+                    f"API returned an error: {http_err.response.status_code}",
+                    status_code=http_err.response.status_code,
+                    response_text=http_err.response.text,
+                ) from http_err
         except httpx.RequestError as req_err:
             logging.error(f"Request failed: {req_err}")
             raise HWAConnectionError(f"Network request failed: {req_err}") from req_err
