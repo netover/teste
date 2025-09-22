@@ -1,6 +1,7 @@
 import logging
 from src.tasks.celery_app import celery_app
 from src.services.ml.trainer import model_trainer
+from dataclasses import asdict
 
 
 @celery_app.task(name="tasks.train_all_models")
@@ -12,6 +13,15 @@ def train_all_models_task():
     try:
         # The training service is now synchronous, so we can call it directly.
         result = model_trainer.trigger_all_training()
+
+        # Convert dataclass objects to dicts for JSON serialization
+        if 'failure_predictor' in result:
+            metrics = result['failure_predictor']
+            result['failure_predictor'] = {
+                "accuracy": metrics.accuracy,
+                "feature_importance": metrics.feature_importance,
+            }
+
         logging.info("Celery task 'train_all_models_task' finished successfully.")
         return result
     except Exception as e:
