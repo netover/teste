@@ -6,6 +6,7 @@ from sklearn.ensemble import RandomForestClassifier, IsolationForest
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
+import os
 import logging
 from pathlib import Path
 from typing import List
@@ -16,8 +17,9 @@ from src.services.ml.models import (
     TrainingMetrics,
 )
 
-# Define the path for saving/loading ML models
-MODEL_DIR = Path(__file__).resolve().parent.parent.parent / "models" / "ml"
+# Define the path for saving/loading ML models, allowing for override via environment variable for testing
+_model_dir_override = os.environ.get("MODEL_DIR_OVERRIDE")
+MODEL_DIR = Path(_model_dir_override) if _model_dir_override else Path(__file__).resolve().parent.parent.parent / "models" / "ml"
 FAILURE_MODEL_PATH = MODEL_DIR / "failure_predictor.joblib"
 ANOMALY_MODEL_PATH = MODEL_DIR / "anomaly_detector.joblib"
 SCALER_PATH = MODEL_DIR / "feature_scaler.joblib"

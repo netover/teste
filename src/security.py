@@ -1,5 +1,8 @@
 from cryptography.fernet import Fernet
 from pathlib import Path
+from fastapi import Security, HTTPException, status
+from fastapi.security import APIKeyHeader
+from src.core import config
 
 KEY_PATH = Path("config/secret.key")
 
@@ -32,12 +35,6 @@ def encrypt_password(password: str, key: bytes) -> bytes:
     f = Fernet(key)
     encrypted_password = f.encrypt(password.encode())
     return encrypted_password
-
-
-from fastapi import Security, HTTPException, status
-from fastapi.security import APIKeyHeader
-
-from src.core import config
 
 api_key_header = APIKeyHeader(name="X-API-Key")
 

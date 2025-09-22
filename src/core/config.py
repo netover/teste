@@ -1,7 +1,7 @@
 import os
+import sys
 import configparser
 from pathlib import Path
-import logging.config
 from dotenv import load_dotenv
 
 # Load environment variables from a .env file if it exists
@@ -55,7 +55,7 @@ DATABASE_URL = os.getenv(
     ),
 )
 REDIS_URL = os.getenv(
-    "REDIS_URL", config.get("redis", "REDIS_URL", fallback="redis://localhost:6379")
+    "REDIS_URL", config.get("redis", "REDIS_URL", fallback="redis://127.0.0.1:6379")
 )
 
 # --- Monitoring Configuration ---
@@ -89,8 +89,6 @@ else:
     CORS_ALLOWED_ORIGINS = []
 
 # --- Determine Application Path for Startup ---
-import sys
-
 if getattr(sys, "frozen", False):
     APP_PATH = sys.executable
 else:

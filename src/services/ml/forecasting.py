@@ -12,9 +12,11 @@ from src.services.ml.models import (
     ForecastDatapoint,
 )
 
-# Define the path for saving/loading Prophet models
-MODEL_DIR = Path(__file__).resolve().parent.parent.parent / "models" / "ml"
-FORECAST_MODEL_DIR = MODEL_DIR / "forecasters"
+import os
+
+# Define the path for saving/loading Prophet models, allowing for override via environment variable for testing
+_forecast_model_dir_override = os.environ.get("FORECAST_MODEL_DIR_OVERRIDE")
+FORECAST_MODEL_DIR = Path(_forecast_model_dir_override) if _forecast_model_dir_override else Path(__file__).resolve().parent.parent.parent / "models" / "ml" / "forecasters"
 
 
 class WorkloadForecaster:
