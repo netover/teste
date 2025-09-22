@@ -6,7 +6,6 @@ from sklearn.ensemble import RandomForestClassifier, IsolationForest
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
-import os
 import logging
 from pathlib import Path
 from typing import List
@@ -16,6 +15,8 @@ from src.services.ml.models import (
     RiskFactor,
     TrainingMetrics,
 )
+
+import os
 
 # Define the path for saving/loading ML models, allowing for override via environment variable for testing
 _model_dir_override = os.environ.get("MODEL_DIR_OVERRIDE")

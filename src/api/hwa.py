@@ -53,18 +53,6 @@ async def get_hwa_client():
 
 
 def is_oql_query_safe(query: str) -> bool:
-    """
-    Performs a basic security check on an OQL query string.
-
-    This is a simple safeguard to prevent destructive or manipulative
-    keywords from being executed via the read-only OQL API endpoint.
-
-    Args:
-        query: The OQL query string to check.
-
-    Returns:
-        True if the query is considered safe, False otherwise.
-    """
     blocked_keywords = [
         "DELETE",
         "UPDATE",
@@ -88,20 +76,6 @@ def is_oql_query_safe(query: str) -> bool:
 async def get_dashboard_data(
     request: Request, client: HWAClient = Depends(get_hwa_client)
 ):
-    """
-    Retrieves and aggregates the primary data needed for the main dashboard view.
-
-    This endpoint concurrently fetches job streams and workstations from the HWA
-    environment and computes several summary statistics.
-
-    Args:
-        request: The incoming FastAPI request.
-        client: The HWAClient dependency for communicating with HWA.
-
-    Returns:
-        A dictionary containing aggregated counts and detailed lists for
-        job streams and workstations.
-    """
     # Use ExceptionGroup in Python 3.11+ for concurrent tasks
     try:
         results = await asyncio.gather(
@@ -134,20 +108,6 @@ async def execute_oql(
     source: str = "plan",
     client: HWAClient = Depends(get_hwa_client),
 ):
-    """
-    Executes a read-only OQL query against the HWA plan or model.
-
-    A security check is performed to prevent destructive keywords.
-
-    Args:
-        request: The incoming FastAPI request.
-        q: The OQL query string.
-        source: The data source to query ('plan' or 'model').
-        client: The HWAClient dependency.
-
-    Returns:
-        The result of the OQL query, typically a list of objects.
-    """
     if not is_oql_query_safe(q):
         raise HTTPException(
             status_code=400, detail="Query contains potentially harmful keywords."
@@ -161,18 +121,6 @@ async def execute_oql(
 async def _job_action_endpoint(
     action: str, plan_id: str, job_id: str, client: HWAClient
 ):
-    """
-    Internal helper to dispatch a job action to the HWAClient.
-
-    Args:
-        action: The action to perform (e.g., 'cancel').
-        plan_id: The ID of the plan.
-        job_id: The ID of the job.
-        client: The HWAClient instance.
-
-    Returns:
-        A dictionary with the result of the action.
-    """
     action_map = {
         "cancel": client.plan.cancel_job,
         "rerun": client.plan.rerun_job,
@@ -203,17 +151,4 @@ async def job_action(
     action: str,
     client: HWAClient = Depends(get_hwa_client),
 ):
-    """
-    Performs an action (e.g., cancel, rerun) on a specific job in the plan.
-
-    Args:
-        request: The incoming FastAPI request.
-        plan_id: The ID of the plan containing the job (e.g., 'current').
-        job_id: The unique ID of the job.
-        action: The action to perform (e.g., 'cancel', 'rerun').
-        client: The HWAClient dependency.
-
-    Returns:
-        A confirmation message indicating the action was sent.
-    """
     return await _job_action_endpoint(action, plan_id, job_id, client)

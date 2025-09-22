@@ -16,6 +16,8 @@ def backend_server(xprocess, tmp_path_factory):
     # Create dedicated temp dirs for models for test isolation
     predictor_model_dir = tmp_path_factory.mktemp("predictor_models")
     forecaster_model_dir = tmp_path_factory.mktemp("forecaster_models")
+    celery_result_dir = tmp_path_factory.mktemp("celery_results")
+
 
     # Set environment variables that the server process will inherit
     os.environ["APP_ENV"] = "production"
@@ -27,6 +29,7 @@ def backend_server(xprocess, tmp_path_factory):
     os.environ["LAYOUT_FILE_OVERRIDE"] = str(BASE_DIR / "tests/e2e/test_layout.json")
     os.environ["MODEL_DIR_OVERRIDE"] = str(predictor_model_dir)
     os.environ["FORECAST_MODEL_DIR_OVERRIDE"] = str(forecaster_model_dir)
+    os.environ["CELERY_RESULT_BACKEND_OVERRIDE"] = f"file://{celery_result_dir}"
 
 
     class Starter(ProcessStarter):
@@ -59,3 +62,4 @@ def backend_server(xprocess, tmp_path_factory):
     xprocess.getinfo("backend_server").terminate()
     del os.environ["MODEL_DIR_OVERRIDE"]
     del os.environ["FORECAST_MODEL_DIR_OVERRIDE"]
+    del os.environ["CELERY_RESULT_BACKEND_OVERRIDE"]

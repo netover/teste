@@ -1,5 +1,7 @@
 import pytest
 from playwright.sync_api import Page, expect
+import json
+from src.core.config import BASE_DIR
 
 # Mock data to be returned by the API during tests
 MOCK_DASHBOARD_DATA = {
@@ -22,11 +24,11 @@ def test_dashboard_loads_and_displays_data(page: Page, backend_server):
     Tests that the main dashboard loads, mocks the data API, and displays the data correctly.
     The test layout is now loaded via an environment variable in the conftest.py server fixture.
     """
-    base_url, _, _ = backend_server
     # Intercept the API call and return our mock data
     page.route("**/api/dashboard_data", lambda route: route.fulfill(json=MOCK_DASHBOARD_DATA))
 
-    # Go to the page using the base_url from the fixture
+    base_url, _, _ = backend_server
+    # Go to the page
     page.goto(base_url)
 
     # For debugging: print the page content to see what's being rendered
@@ -44,12 +46,12 @@ def test_cancel_job_flow(page: Page, backend_server):
     """
     Tests the flow for cancelling a job from a modal.
     """
-    base_url, _, _ = backend_server
     # Mock the API endpoints needed for this test
     page.route("**/api/dashboard_data", lambda route: route.fulfill(json=MOCK_DASHBOARD_DATA))
     page.route("**/api/plan/current/job/job123/action/cancel",
                lambda route: route.fulfill(json={"success": True, "message": "Cancel command sent."}))
 
+    base_url, _, _ = backend_server
     # Go to the page
     page.goto(base_url)
 
