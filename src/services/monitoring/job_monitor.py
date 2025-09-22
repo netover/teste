@@ -7,14 +7,14 @@ from dataclasses import dataclass, asdict
 import redis.asyncio as redis
 
 from src.core import config
-from src.core.database import AsyncSessionLocal
+from src.database.connection import AsyncSessionLocal
 from src.hwa_connector import HWAClient, HWAConnectionError, HWAAPIError
-from src.models.database import JobStatusHistory
+from src.database.schema import JobStatusHistory
 
 @dataclass
 class JobStatusEvent:
     job_id: str
-    job_name: str
+    job_stream_name: str
     old_status: str
     new_status: str
     workstation: str
@@ -23,7 +23,11 @@ class JobStatusEvent:
     error_message: Optional[str] = None
 
     def to_dict(self):
+        # The key 'job_name' is what the frontend UI expects.
+        # The database model expects 'job_stream_name'.
+        # This method handles the translation for the frontend.
         d = asdict(self)
+        d["job_name"] = d.pop("job_stream_name")
         d["timestamp"] = self.timestamp.isoformat()
         return d
 
@@ -88,7 +92,7 @@ class JobMonitoringService:
     async def _process_job_update(self, job_data: dict, old_job_data: Optional[dict]):
         event = JobStatusEvent(
             job_id=job_data.get("id", job_data.get("jobStreamName")),
-            job_name=job_data.get("jobStreamName"),
+            job_stream_name=job_data.get("jobStreamName"),
             old_status=old_job_data.get("status", "NEW") if old_job_data else "NEW",
             new_status=job_data.get("status", "UNKNOWN"),
             workstation=job_data.get("workstationName", ""),
@@ -97,23 +101,36 @@ class JobMonitoringService:
         await self._handle_status_change(event)
 
     async def _handle_status_change(self, event: JobStatusEvent):
-        logging.info(f"Job Status Change: {event.job_name} | {event.old_status} -> {event.new_status}")
+        logging.info(f"Job Status Change: {event.job_stream_name} | {event.old_status} -> {event.new_status}")
         await self._store_status_history(event)
         await self._check_alert_rules(event)
         await self._publish_realtime_update(event)
 
     async def _store_status_history(self, event: JobStatusEvent):
+        """Stores a job status event in the database."""
         try:
             async with AsyncSessionLocal() as session:
                 async with session.begin():
-                    history_entry = JobStatusHistory(**event.to_dict())
+                    # Manually map fields to ensure the dataclass and DB model can evolve separately
+                    history_entry = JobStatusHistory(
+                        job_id=event.job_id,
+                        job_stream_name=event.job_stream_name,
+                        status=event.new_status,
+                        workstation_name=event.workstation,
+                        timestamp=event.timestamp,
+                        details={
+                            "old_status": event.old_status,
+                            "duration": event.duration,
+                            "error_message": event.error_message,
+                        },
+                    )
                     session.add(history_entry)
         except Exception as e:
             logging.error(f"Failed to store job status history: {e}", exc_info=True)
 
     async def _check_alert_rules(self, event: JobStatusEvent):
         if (event.new_status in config.CRITICAL_STATUSES and event.old_status not in config.CRITICAL_STATUSES):
-            alert_data = {"type": "alert_notification", "data": {"severity": "HIGH", "title": "Job Failure", "job_name": event.job_name, "status": event.new_status, "workstation": event.workstation, "timestamp": event.timestamp.isoformat(), "message": f"Job '{event.job_name}' on workstation '{event.workstation}' failed with status: {event.new_status}."}}
+            alert_data = {"type": "alert_notification", "data": {"severity": "HIGH", "title": "Job Failure", "job_name": event.job_stream_name, "status": event.new_status, "workstation": event.workstation, "timestamp": event.timestamp.isoformat(), "message": f"Job '{event.job_stream_name}' on workstation '{event.workstation}' failed with status: {event.new_status}."}}
             await self._send_alert(alert_data)
 
     async def _send_alert(self, alert_data: dict):

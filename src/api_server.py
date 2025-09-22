@@ -14,6 +14,7 @@ from src.core import config
 from src.api import pages, config as api_config, hwa, websockets, monitoring, ml
 from src.services.monitoring.websocket import ws_manager
 from src.services.monitoring.job_monitor import job_monitor
+from src.database.connection import create_db_and_tables
 
 # --- Lifespan Management for Background Tasks ---
 
@@ -34,6 +35,8 @@ async def _initialize_services():
 async def lifespan(app: FastAPI):
     # Startup
     logging.info("Application startup...")
+    await create_db_and_tables()
+    logging.info("Database tables created.")
     monitoring_task = None
     pubsub_task = None
     # In testing mode, we don't want to start the full background services

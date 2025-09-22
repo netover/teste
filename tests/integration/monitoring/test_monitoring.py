@@ -52,7 +52,7 @@ async def test_poll_job_status_detects_new_job(mocker, service):
     service._handle_status_change.assert_called_once()
     call_args = service._handle_status_change.call_args[0][0]
     assert isinstance(call_args, JobStatusEvent)
-    assert call_args.job_name == "JOB_A"
+    assert call_args.job_stream_name == "JOB_A"
     assert call_args.old_status == "NEW"
     assert call_args.new_status == "EXEC"
 
@@ -88,7 +88,7 @@ async def test_poll_job_status_detects_status_change(mocker, service):
 
     service._handle_status_change.assert_called_once()
     call_args = service._handle_status_change.call_args[0][0]
-    assert call_args.job_name == "JOB_A"
+    assert call_args.job_stream_name == "JOB_A"
     assert call_args.old_status == "PEND"
     assert call_args.new_status == "EXEC"
 
@@ -97,7 +97,7 @@ async def test_handle_status_change_publishes_and_alerts(service):
     """Verify that a critical status change triggers both a real-time update and an alert."""
     event = JobStatusEvent(
         job_id="123",
-        job_name="JOB_A",
+        job_stream_name="JOB_A",
         old_status="EXEC",
         new_status="ABEND",
         workstation="CPU1",
