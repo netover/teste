@@ -16,6 +16,8 @@ src/api/websockets.py
 src/core/__init__.py
 src/core/config.py
 src/core/database.py
+src/database/connection.py
+src/database/schema.py
 src/hwa_neuromorphic_dashboard.egg-info/PKG-INFO
 src/hwa_neuromorphic_dashboard.egg-info/SOURCES.txt
 src/hwa_neuromorphic_dashboard.egg-info/dependency_links.txt

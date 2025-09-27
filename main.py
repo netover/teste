@@ -23,8 +23,11 @@ def initial_setup():
         else:
             logging.warning(f"'{template_path}' not found. Cannot create config file.")
 
-    if not config.LAYOUT_FILE.exists():
-        logging.info(f"'{config.LAYOUT_FILE}' not found. Creating a default layout.")
+    layout_file = config.get_layout_file()
+    if not layout_file.exists():
+        logging.info(f"'{layout_file}' not found. Creating a default layout.")
+        # Ensure the parent directory exists
+        layout_file.parent.mkdir(parents=True, exist_ok=True)
         default_layout = [
             {
                 "id": "widget_running",
@@ -49,7 +52,7 @@ def initial_setup():
                 "color_class": "color-red",
             },
         ]
-        with open(config.LAYOUT_FILE, "w", encoding="utf-8") as f:
+        with open(layout_file, "w", encoding="utf-8") as f:
             json.dump(default_layout, f, indent=4)
 
 

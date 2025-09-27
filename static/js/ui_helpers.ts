@@ -1,3 +1,5 @@
+import { JobStream } from './models.ts';
+
 type ModalSetupCallback = (modalContent: HTMLElement, closeModal: () => void) => void;
 
 /**
@@ -90,8 +92,6 @@ export function createModal(title: string, bodyHTML: string, setupCallback?: Mod
     }
 }
 
-import { JobStream } from './models.ts';
-
 export function createListWindow<T>(title: string, itemList: T[], renderItem: (item: T) => string): void {
     let listHtml = '<ul>';
     if (itemList && itemList.length > 0) {
@@ -133,7 +133,7 @@ export function createJobDetailWindow(jobStream: JobStream): void {
     createModal(`Job Details: ${jobStreamName}`, bodyHTML, (modal, closeModal) => {
         modal.querySelectorAll('.modal-footer button').forEach(btn => {
             btn.addEventListener('click', () => {
-                const action = btn.dataset.action;
+                const action = (btn as HTMLElement).dataset.action;
                 if (confirm(`Are you sure you want to ${action} job "${jobStreamName}"?`)) {
                     // Dispatch a custom event instead of handling the fetch here
                     const event = new CustomEvent('job-action', {
@@ -144,4 +144,42 @@ export function createJobDetailWindow(jobStream: JobStream): void {
             });
         });
     });
+}
+
+/**
+ * Displays a dismissable message to the user inside a given container.
+ * @param msg The message to display.
+ * @param type The type of message (info, success, error).
+ * @param container The parent element for the message.
+ * @param timeout How long the message should be visible in milliseconds.
+ */
+export function showMessage(
+    msg: string,
+    type: 'info' | 'success' | 'error' = 'info',
+    container: HTMLElement,
+    timeout: number = 4000
+): void {
+    let messageArea = container.querySelector<HTMLElement>('#message-area');
+    if (!messageArea) {
+        messageArea = document.createElement('div');
+        messageArea.id = 'message-area';
+        container.prepend(messageArea); // Add it to the top of the container
+    }
+
+    messageArea.textContent = msg;
+    messageArea.className = `message-area ${type}`; // Make it visible by setting class
+
+    // Clear any existing timer
+    const existingTimer = Number(messageArea.dataset.timerId);
+    if (existingTimer) {
+        clearTimeout(existingTimer);
+    }
+
+    // Set new timer to hide it
+    const timerId = setTimeout(() => {
+        if (messageArea) {
+            messageArea.className = 'message-area hidden';
+        }
+    }, timeout);
+    messageArea.dataset.timerId = String(timerId);
 }

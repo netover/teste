@@ -59,28 +59,31 @@ def test_dashboard_data_endpoint(monkeypatch, tmp_path):
 @pytest.mark.integration
 def test_get_layout_endpoint(monkeypatch, tmp_path):
     """
-    Tests the /api/dashboard_layout GET endpoint using a temporary layout file.
+    Tests the /api/layout GET endpoint using a temporary layout file.
     """
     layout_path = tmp_path / "dashboard_layout.json"
     test_layout = [{"id": "test_widget"}]
     layout_path.write_text(json.dumps(test_layout))
-    monkeypatch.setattr(config, "LAYOUT_FILE", layout_path)
+    # Mock the get_layout_file function to return our temporary path
+    monkeypatch.setattr(config, "get_layout_file", lambda: layout_path)
 
-    response = client.get("/api/dashboard_layout")
+    response = client.get("/api/layout")
     assert response.status_code == 200
     data = response.json()
     assert data[0]["id"] == "test_widget"
 
+
 @pytest.mark.integration
 def test_save_layout_endpoint(monkeypatch, tmp_path):
     """
-    Tests the /api/dashboard_layout POST endpoint using a temporary layout file.
+    Tests the /api/layout POST endpoint using a temporary layout file.
     """
     layout_path = tmp_path / "dashboard_layout.json"
-    monkeypatch.setattr(config, "LAYOUT_FILE", layout_path)
+    # Mock the get_layout_file function to return our temporary path
+    monkeypatch.setattr(config, "get_layout_file", lambda: layout_path)
 
     new_layout = [{"id": "saved_widget", "label": "Saved"}]
-    response = client.post("/api/dashboard_layout", json=new_layout)
+    response = client.post("/api/layout", json=new_layout)
     assert response.status_code == 200
 
     saved_data = json.loads(layout_path.read_text())

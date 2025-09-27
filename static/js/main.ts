@@ -249,7 +249,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const fetchLayout = async (): Promise<WidgetConfig[]> => {
         try {
-            const response = await fetch('/api/dashboard_layout');
+            const response = await fetch('/api/layout');
             if (!response.ok) throw new Error('Could not load layout.');
             return await response.json();
         } catch (error) {

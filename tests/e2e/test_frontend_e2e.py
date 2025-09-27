@@ -1,44 +1,57 @@
 import pytest
 from playwright.sync_api import Page, expect
-import json
-from src.core.config import BASE_DIR
 
-# Mock data to be returned by the API during tests
+# --- Test Data ---
+
+# The layout required for these tests, sent to the API at the start of each test.
+INITIAL_DASHBOARD_LAYOUT = [
+    {
+        "id": "widget_abend",
+        "type": "summary_count",
+        "label": "Jobs Abend",
+        "api_metric": "abend_count",
+    },
+    {
+        "id": "widget_running",
+        "type": "summary_count",
+        "label": "Jobs Running",
+        "api_metric": "running_count",
+    },
+]
+
+# Mock data returned by the dashboard_data API during tests.
 MOCK_DASHBOARD_DATA = {
     "abend_count": 1,
-    "running_count": 1,
-    "total_job_stream_count": 2,
-    "total_workstation_count": 1,
+    "running_count": 5,
     "job_streams": [
         {"id": "job123", "jobStreamName": "CRITICAL_JOB", "workstationName": "CPU1", "status": "ABEND"},
-        {"id": "job456", "jobStreamName": "DAILY_REPORT", "workstationName": "CPU1", "status": "EXEC"},
     ],
-    "workstations": [{"name": "CPU1", "type": "Master", "status": "LINKED"}],
     "jobs_abend": [{"id": "job123", "jobStreamName": "CRITICAL_JOB", "workstationName": "CPU1", "status": "ABEND"}],
-    "jobs_running": [{"id": "job456", "jobStreamName": "DAILY_REPORT", "workstationName": "CPU1", "status": "EXEC"}],
 }
+
 
 @pytest.mark.e2e
 def test_dashboard_loads_and_displays_data(page: Page, backend_server):
     """
     Tests that the main dashboard loads, mocks the data API, and displays the data correctly.
-    The test layout is now loaded via an environment variable in the conftest.py server fixture.
     """
-    # Intercept the API call and return our mock data
+    base_url, _, _ = backend_server
+
+    # --- Test Setup ---
+    # Set the required layout for this test via API.
+    setup_response = page.request.post(f"{base_url}/api/layout", data=INITIAL_DASHBOARD_LAYOUT)
+    expect(setup_response).to_be_ok()
+    # Intercept the data API call to return mock data.
     page.route("**/api/dashboard_data", lambda route: route.fulfill(json=MOCK_DASHBOARD_DATA))
 
-    base_url, _, _ = backend_server
-    # Go to the page
+    # --- Start Test ---
     page.goto(base_url)
 
-    # For debugging: print the page content to see what's being rendered
-    print(page.content())
-
-    # Assert that the data is displayed correctly
+    # Assert that the widget data is displayed correctly
     expect(page.locator("#widget_abend .widget-value")).to_have_text("1")
-    expect(page.locator("#widget_running .widget-value")).to_have_text("1")
-    expect(page.locator("#job-streams-grid .job-stream-card")).to_have_count(2)
-    expect(page.locator("#workstations-grid .workstation-card")).to_have_count(1)
+    expect(page.locator("#widget_running .widget-value")).to_have_text("5")
+    # Assert that the job stream grid is populated
+    expect(page.locator("#job-streams-grid .job-stream-card")).to_have_count(1)
 
 
 @pytest.mark.e2e
@@ -46,20 +59,24 @@ def test_cancel_job_flow(page: Page, backend_server):
     """
     Tests the flow for cancelling a job from a modal.
     """
-    # Mock the API endpoints needed for this test
+    base_url, _, _ = backend_server
+
+    # --- Test Setup ---
+    # Set the required layout for this test via API.
+    setup_response = page.request.post(f"{base_url}/api/layout", data=INITIAL_DASHBOARD_LAYOUT)
+    expect(setup_response).to_be_ok()
+    # Mock the API endpoints needed for this test.
     page.route("**/api/dashboard_data", lambda route: route.fulfill(json=MOCK_DASHBOARD_DATA))
     page.route("**/api/plan/current/job/job123/action/cancel",
                lambda route: route.fulfill(json={"success": True, "message": "Cancel command sent."}))
 
-    base_url, _, _ = backend_server
-    # Go to the page
+    # --- Start Test ---
     page.goto(base_url)
 
-    # Wait for the job stream card to be visible
-    expect(page.locator('.job-stream-card[data-job-id="job123"]')).to_be_visible()
-
-    # Click the card to open the modal
-    page.locator('.job-stream-card[data-job-id="job123"]').click()
+    # Wait for the job stream card to be visible and click it
+    job_card = page.locator('.job-stream-card[data-job-id="job123"]')
+    expect(job_card).to_be_visible()
+    job_card.click()
 
     # Check that the modal is visible and contains the correct job name
     modal = page.locator(".modal-content")

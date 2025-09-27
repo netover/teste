@@ -1,0 +1,14 @@
+[
+    {
+        "id": "widget_abend",
+        "type": "summary_count",
+        "label": "Jobs Abend",
+        "api_metric": "abend_count"
+    },
+    {
+        "id": "widget_running",
+        "type": "summary_count",
+        "label": "Jobs Running",
+        "api_metric": "running_count"
+    }
+]

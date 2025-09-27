@@ -12,11 +12,18 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 CONFIG_DIR = BASE_DIR / "config"
 CONFIG_FILE = CONFIG_DIR / "config.ini"
-layout_file_path = os.getenv("LAYOUT_FILE_OVERRIDE")
-if layout_file_path:
-    LAYOUT_FILE = Path(layout_file_path)
-else:
-    LAYOUT_FILE = BASE_DIR / "dashboard_layout.json"
+
+def get_layout_file() -> Path:
+    """
+    Determines the correct dashboard layout file to use.
+    It prioritizes the LAYOUT_FILE_OVERRIDE environment variable,
+    which is useful for testing, and falls back to the default file.
+    """
+    layout_file_path = os.getenv("LAYOUT_FILE_OVERRIDE")
+    if layout_file_path:
+        return Path(layout_file_path)
+    return CONFIG_DIR / "dashboard_layout.json"
+
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 ICON_FILE = BASE_DIR / "icon.png"

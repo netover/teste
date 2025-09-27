@@ -9,7 +9,16 @@ def test_config_paths():
     assert isinstance(config.BASE_DIR, Path)
     assert str(config.CONFIG_DIR).endswith("config")
     assert str(config.CONFIG_FILE).endswith("config.ini")
-    assert str(config.LAYOUT_FILE).endswith("dashboard_layout.json")
+    # Test the default layout file path
+    assert str(config.get_layout_file()).endswith("config/dashboard_layout.json")
+
+def test_layout_file_override(monkeypatch):
+    """
+    Tests that the LAYOUT_FILE_OVERRIDE environment variable correctly overrides the default.
+    """
+    test_path = "/tmp/test_layout.json"
+    monkeypatch.setenv("LAYOUT_FILE_OVERRIDE", test_path)
+    assert config.get_layout_file() == Path(test_path)
     assert str(config.STATIC_DIR).endswith("static")
     assert str(config.TEMPLATES_DIR).endswith("templates")
 

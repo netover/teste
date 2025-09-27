@@ -7,38 +7,42 @@ from src.core.config import BASE_DIR
 
 # Define a fixture for the backend server process
 @pytest.fixture(scope="function")
-def backend_server(xprocess, tmp_path_factory):
+def backend_server(xprocess, tmp_path_factory, request):
     """
-    Fixture to run the FastAPI backend server for a single test function.
-    It creates temporary directories for models, sets them as environment variables,
-    and ensures the server is running and ready for the test.
+    Fixture to run an ISOLATED FastAPI backend server for each test function.
+    It creates a unique process name and a dedicated environment for each test
+    to prevent any state pollution (e.g., modified layout files).
     """
-    # Create dedicated temp dirs for models for test isolation
+    server_name = f"backend_server_{request.node.name}"
+
+    # Create temporary directories for test-specific data
     predictor_model_dir = tmp_path_factory.mktemp("predictor_models")
     forecaster_model_dir = tmp_path_factory.mktemp("forecaster_models")
     celery_result_dir = tmp_path_factory.mktemp("celery_results")
 
-
-    # Set environment variables that the server process will inherit
-    os.environ["APP_ENV"] = "production"
-    os.environ["FORCE_CONSOLE_MODE"] = "1"
-    os.environ["HWA_HOSTNAME"] = "test_host"
-    os.environ["HWA_PORT"] = "12345"
-    os.environ["HWA_USERNAME"] = "test_user"
-    os.environ["HWA_PASSWORD"] = "test_password"
-    os.environ["LAYOUT_FILE_OVERRIDE"] = str(BASE_DIR / "tests/e2e/test_layout.json")
-    os.environ["MODEL_DIR_OVERRIDE"] = str(predictor_model_dir)
-    os.environ["FORECAST_MODEL_DIR_OVERRIDE"] = str(forecaster_model_dir)
-    os.environ["CELERY_RESULT_BACKEND_OVERRIDE"] = f"file://{celery_result_dir}"
-
+    # Build a dedicated environment for the subprocess
+    proc_env = os.environ.copy()
+    proc_env.update({
+        "APP_ENV": "production",
+        "FORCE_CONSOLE_MODE": "1",
+        "HWA_HOSTNAME": "test_host",
+        "HWA_PORT": "12345",
+        "HWA_USERNAME": "test_user",
+        "HWA_PASSWORD": "test_password",
+        # LAYOUT_FILE_OVERRIDE is removed. Tests will now manage state via API.
+        "MODEL_DIR_OVERRIDE": str(predictor_model_dir),
+        "FORECAST_MODEL_DIR_OVERRIDE": str(forecaster_model_dir),
+        "CELERY_RESULT_BACKEND_OVERRIDE": f"file://{celery_result_dir}",
+    })
 
     class Starter(ProcessStarter):
         cwd = str(BASE_DIR)
         pattern = r"Uvicorn running on http://\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:(\d+)"
         args = ["python", str(BASE_DIR / "main.py")]
+        env = proc_env
 
     # Start the process and get its info
-    pid, log_path = xprocess.ensure("backend_server", Starter)
+    pid, log_path = xprocess.ensure(server_name, Starter)
 
     # Poll the log file to get the port
     base_url = None
@@ -58,8 +62,5 @@ def backend_server(xprocess, tmp_path_factory):
     # Yield all the necessary info for the test
     yield base_url, predictor_model_dir, forecaster_model_dir
 
-    # Clean up the process and environment variables
-    xprocess.getinfo("backend_server").terminate()
-    del os.environ["MODEL_DIR_OVERRIDE"]
-    del os.environ["FORECAST_MODEL_DIR_OVERRIDE"]
-    del os.environ["CELERY_RESULT_BACKEND_OVERRIDE"]
+    # xprocess handles process cleanup automatically
+    xprocess.getinfo(server_name).terminate()
