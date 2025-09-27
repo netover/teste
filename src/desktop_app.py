@@ -4,6 +4,7 @@ import sys
 from PIL import Image
 
 from src.core import config
+from src.core.settings import settings
 
 try:
     import pystray
@@ -33,7 +34,7 @@ def is_in_startup():
         return False
     key = _get_startup_key()
     try:
-        winreg.QueryValueEx(key, config.APP_NAME)
+        winreg.QueryValueEx(key, settings.APP_NAME)
         return True
     except FileNotFoundError:
         return False
@@ -48,20 +49,20 @@ def toggle_startup():
     key = _get_startup_key()
     try:
         if is_in_startup():
-            winreg.DeleteValue(key, config.APP_NAME)
-            logging.info(f"Removed {config.APP_NAME} from startup.")
+            winreg.DeleteValue(key, settings.APP_NAME)
+            logging.info(f"Removed {settings.APP_NAME} from startup.")
         else:
             winreg.SetValueEx(
-                key, config.APP_NAME, 0, winreg.REG_SZ, f'"{config.APP_PATH}"'
+                key, settings.APP_NAME, 0, winreg.REG_SZ, f'"{config.APP_PATH}"'
             )
-            logging.info(f"Added {config.APP_NAME} to startup.")
+            logging.info(f"Added {settings.APP_NAME} to startup.")
     finally:
         winreg.CloseKey(key)
 
 
 def open_dashboard():
     """Opens the dashboard URL in the default web browser."""
-    webbrowser.open(config.BASE_URL)
+    webbrowser.open(settings.BASE_URL)
 
 
 def stop_server(server):
@@ -103,7 +104,7 @@ def run_tray_app(server):
         [pystray.Menu.SEPARATOR, pystray.MenuItem("Exit", lambda: stop_server(server))]
     )
 
-    icon = pystray.Icon(config.APP_NAME, image, config.APP_NAME, tuple(menu_items))
+    icon = pystray.Icon(settings.APP_NAME, image, settings.APP_NAME, tuple(menu_items))
 
     # The stop function needs to also stop the icon loop
     server_shutdown_callback = icon.stop

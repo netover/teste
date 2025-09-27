@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Set
 from fastapi import WebSocket, WebSocketDisconnect
 import redis.asyncio as redis
-from src.core import config
+from src.core.settings import settings
 
 
 class WebSocketManager:
@@ -14,11 +14,11 @@ class WebSocketManager:
         self.redis_client: redis.Redis = None
 
     async def initialize(self):
-        """Initialize Redis connection for pub/sub using settings from config."""
+        """Initialize Redis connection for pub/sub using settings from the new settings object."""
         self.redis_client = await redis.from_url(
-            config.REDIS_URL, decode_responses=True
+            settings.REDIS_URL, decode_responses=True
         )
-        logging.info(f"WebSocketManager initialized with Redis at {config.REDIS_URL}")
+        logging.info(f"WebSocketManager initialized with Redis at {settings.REDIS_URL}")
 
     async def connect(self, websocket: WebSocket, user_id: str):
         """Accept WebSocket connection and add to active connections"""

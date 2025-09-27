@@ -1,10 +1,10 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from src.core import config
+from src.core.settings import settings
 from .schema import Base
 
 # Create an asynchronous engine for the database connection.
-# The URL is pulled from our central configuration.
-engine = create_async_engine(config.DATABASE_URL, echo=False)
+# The URL is pulled from our central settings object.
+engine = create_async_engine(settings.DATABASE_URL, echo=False)
 
 # Create a configured "Session" class.
 # This will be used to create individual database sessions.

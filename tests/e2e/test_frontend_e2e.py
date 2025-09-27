@@ -3,19 +3,29 @@ from playwright.sync_api import Page, expect
 
 # --- Test Data ---
 
-# The layout required for these tests, sent to the API at the start of each test.
+# The layout required for these tests, matching the full schema to prevent rendering errors.
 INITIAL_DASHBOARD_LAYOUT = [
     {
         "id": "widget_abend",
         "type": "summary_count",
         "label": "Jobs Abend",
+        "icon": "fas fa-exclamation-triangle",
         "api_metric": "abend_count",
+        "modal_data_key": "jobs_abend",
+        "modal_title": "Abended Jobs",
+        "modal_item_renderer": "renderJobItem",
+        "color_class": "color-red",
     },
     {
         "id": "widget_running",
         "type": "summary_count",
         "label": "Jobs Running",
+        "icon": "fas fa-running",
         "api_metric": "running_count",
+        "modal_data_key": "jobs_running",
+        "modal_title": "Running Jobs",
+        "modal_item_renderer": "renderJobItem",
+        "color_class": "color-blue",
     },
 ]
 
@@ -33,15 +43,12 @@ MOCK_DASHBOARD_DATA = {
 @pytest.mark.e2e
 def test_dashboard_loads_and_displays_data(page: Page, backend_server):
     """
-    Tests that the main dashboard loads, mocks the data API, and displays the data correctly.
+    Tests that the main dashboard loads by mocking all required API endpoints.
     """
     base_url, _, _ = backend_server
 
-    # --- Test Setup ---
-    # Set the required layout for this test via API.
-    setup_response = page.request.post(f"{base_url}/api/layout", data=INITIAL_DASHBOARD_LAYOUT)
-    expect(setup_response).to_be_ok()
-    # Intercept the data API call to return mock data.
+    # --- Test Setup: Intercept API calls ---
+    page.route("**/api/layout", lambda route: route.fulfill(json=INITIAL_DASHBOARD_LAYOUT))
     page.route("**/api/dashboard_data", lambda route: route.fulfill(json=MOCK_DASHBOARD_DATA))
 
     # --- Start Test ---
@@ -50,22 +57,18 @@ def test_dashboard_loads_and_displays_data(page: Page, backend_server):
     # Assert that the widget data is displayed correctly
     expect(page.locator("#widget_abend .widget-value")).to_have_text("1")
     expect(page.locator("#widget_running .widget-value")).to_have_text("5")
-    # Assert that the job stream grid is populated
     expect(page.locator("#job-streams-grid .job-stream-card")).to_have_count(1)
 
 
 @pytest.mark.e2e
 def test_cancel_job_flow(page: Page, backend_server):
     """
-    Tests the flow for cancelling a job from a modal.
+    Tests the flow for cancelling a job from a modal by mocking all required API endpoints.
     """
     base_url, _, _ = backend_server
 
-    # --- Test Setup ---
-    # Set the required layout for this test via API.
-    setup_response = page.request.post(f"{base_url}/api/layout", data=INITIAL_DASHBOARD_LAYOUT)
-    expect(setup_response).to_be_ok()
-    # Mock the API endpoints needed for this test.
+    # --- Test Setup: Intercept API calls ---
+    page.route("**/api/layout", lambda route: route.fulfill(json=INITIAL_DASHBOARD_LAYOUT))
     page.route("**/api/dashboard_data", lambda route: route.fulfill(json=MOCK_DASHBOARD_DATA))
     page.route("**/api/plan/current/job/job123/action/cancel",
                lambda route: route.fulfill(json={"success": True, "message": "Cancel command sent."}))
@@ -73,21 +76,15 @@ def test_cancel_job_flow(page: Page, backend_server):
     # --- Start Test ---
     page.goto(base_url)
 
-    # Wait for the job stream card to be visible and click it
     job_card = page.locator('.job-stream-card[data-job-id="job123"]')
     expect(job_card).to_be_visible()
     job_card.click()
 
-    # Check that the modal is visible and contains the correct job name
     modal = page.locator(".modal-content")
     expect(modal).to_be_visible()
     expect(modal).to_contain_text("CRITICAL_JOB")
 
-    # Accept the confirmation dialog that pops up when cancelling
     page.once("dialog", lambda dialog: dialog.accept())
-
-    # Click the cancel button in the modal
     modal.locator('button[data-action="cancel"]').click()
 
-    # Assert that the modal is no longer visible
     expect(modal).not_to_be_visible()

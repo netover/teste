@@ -2,7 +2,7 @@ import httpx
 import logging
 from typing import Optional
 
-from src.core import config
+from src.core.settings import settings
 
 # --- Custom Exceptions ---
 class HWAError(Exception):
@@ -100,7 +100,7 @@ class PlanService:
         if filter_criteria:
             payload["filters"] = {"jobStreamInPlanFilter": filter_criteria}
         return await self.client._make_request(
-            "POST", endpoint, json=payload, headers={"How-Many": str(config.HWA_HOW_MANY_LIMIT)}
+            "POST", endpoint, json=payload, headers={"How-Many": str(settings.HWA_HOW_MANY_LIMIT)}
         )
 
     async def get_job_log(self, job_id, plan_id="current"):
@@ -127,7 +127,7 @@ class PlanService:
         endpoint = f"/plan/{plan_id}/query"
         params = {"oql": oql_query}
         return await self.client._make_request(
-            "GET", endpoint, params=params, headers={"How-Many": str(config.HWA_HOW_MANY_LIMIT)}
+            "GET", endpoint, params=params, headers={"How-Many": str(settings.HWA_HOW_MANY_LIMIT)}
         )
 
 class ModelService:
@@ -139,11 +139,11 @@ class ModelService:
         payload = {"columns": ["workstationName", "status"]}
         if filter_criteria:
             payload["filters"] = {"workstationFilter": filter_criteria}
-        return await self.client._make_request("POST", endpoint, json=payload, headers={"How-Many": str(config.HWA_HOW_MANY_LIMIT)})
+        return await self.client._make_request("POST", endpoint, json=payload, headers={"How-Many": str(settings.HWA_HOW_MANY_LIMIT)})
 
     async def execute_oql_query(self, oql_query):
         endpoint = "/model/query"
         params = {"oql": oql_query}
         return await self.client._make_request(
-            "GET", endpoint, params=params, headers={"How-Many": str(config.HWA_HOW_MANY_LIMIT)}
+            "GET", endpoint, params=params, headers={"How-Many": str(settings.HWA_HOW_MANY_LIMIT)}
         )

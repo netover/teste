@@ -5,9 +5,9 @@ from fastapi import APIRouter, Request, HTTPException, Depends, Query
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from src.core import config
+from src.core.settings import settings
 from src.hwa_connector import HWAClient
-from src.security import get_api_key, load_key, decrypt_password
+from src.security import get_api_key
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -16,37 +16,25 @@ limiter = Limiter(key_func=get_remote_address)
 async def get_hwa_client():
     """
     Dependency to provide an initialized HWAClient.
-    It now reads directly from the centralized config module.
+    It reads connection details from the centralized settings object.
     """
-    if not config.HWA_HOSTNAME or not config.HWA_USERNAME:
-        raise HTTPException(
-            status_code=503,
-            detail="HWA connection details are not configured in config.ini or environment variables.",
-        )
-
-    # Decrypt password if it exists
-    decrypted_password = None
-    if config.HWA_PASSWORD:
-        try:
-            key = load_key()
-            decrypted_password = decrypt_password(
-                config.HWA_PASSWORD.encode("utf-8"), key
-            )
-        except Exception as e:
-            logging.error(f"Failed to decrypt HWA password: {e}")
-            raise HTTPException(
-                status_code=500, detail="Failed to process HWA credentials."
-            )
-
+    # Pydantic's BaseSettings will raise an error on startup if required
+    # settings (like HWA_HOSTNAME) are missing, so we don't need to check here.
     try:
         client = HWAClient(
-            hostname=config.HWA_HOSTNAME,
-            port=config.HWA_PORT,
-            username=config.HWA_USERNAME,
-            password=decrypted_password,
+            hostname=settings.HWA_HOSTNAME,
+            port=settings.HWA_PORT,
+            username=settings.HWA_USERNAME,
+            password=settings.HWA_PASSWORD,
         )
         async with client as active_client:
             yield active_client
+    except ValueError as e:
+        logging.error(f"HWAClient configuration error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="HWA connection details are not configured correctly.",
+        )
     except Exception as e:
         logging.error(f"Failed to create HWAClient: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Could not connect to HWA.")

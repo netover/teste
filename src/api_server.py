@@ -10,7 +10,8 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from src.core import config
+from src.core import config  # Keep for path variables
+from src.core.settings import settings  # Import the new settings object
 from src.api import pages, config as api_config, hwa, websockets, monitoring, ml
 from src.services.monitoring.websocket import ws_manager
 from src.services.monitoring.job_monitor import job_monitor
@@ -40,7 +41,7 @@ async def lifespan(app: FastAPI):
     monitoring_task = None
     pubsub_task = None
     # In testing mode, we don't want to start the full background services
-    if not config.TESTING:
+    if not settings.TESTING:
         try:
             await _initialize_services()
         except Exception as e:
@@ -53,7 +54,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
-    if not config.TESTING:
+    if not settings.TESTING:
         logging.info("Application shutdown...")
         job_monitor.stop_monitoring()
         if monitoring_task:
@@ -72,8 +73,8 @@ async def lifespan(app: FastAPI):
 # --- App Setup ---
 limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(
-    title=config.APP_NAME,
-    version=config.APP_VERSION,
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
     description="HWA Neuromorphic Dashboard API",
     lifespan=lifespan,
 )
@@ -83,14 +84,16 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # --- Middleware ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=config.CORS_ALLOWED_ORIGINS,
+    allow_origins=settings.CORS_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # --- Static Files ---
-if config.APP_ENV == "production":
+# Use settings to determine the environment
+if settings.APP_ENV == "production":
+    # Use config for the static path variable
     app.mount("/dist", StaticFiles(directory=config.BASE_DIR / "dist"), name="dist")
 
 # --- API Routers ---

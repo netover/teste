@@ -1,14 +1,22 @@
 [
     {
-        "id": "widget_abend",
+        "id": "widget_abend_start",
         "type": "summary_count",
         "label": "Jobs Abend",
-        "api_metric": "abend_count"
+        "icon": "fas fa-exclamation-triangle",
+        "api_metric": "abend_count",
+        "modal_data_key": "jobs_abend",
+        "modal_title": "Abended Jobs",
+        "modal_item_renderer": "renderJobItem",
+        "color_class": "color-red"
     },
     {
-        "id": "widget_running",
+        "id": "widget_1758946568366",
         "type": "summary_count",
-        "label": "Jobs Running",
-        "api_metric": "running_count"
+        "label": "New Widget Label",
+        "icon": "fas fa-info-circle",
+        "api_metric": "metric_name",
+        "modal_data_key": "data_key",
+        "color_class": "color-blue"
     }
 ]

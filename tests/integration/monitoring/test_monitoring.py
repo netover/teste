@@ -13,7 +13,8 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 @pytest.fixture
 def service(redis_client):
     """Provides a fresh JobMonitoringService instance for each test, with a fake Redis client."""
-    service_instance = JobMonitoringService()
+    # Provide a default poll_interval for testing purposes
+    service_instance = JobMonitoringService(poll_interval=1)
     service_instance.redis_client = redis_client
     return service_instance
 

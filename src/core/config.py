@@ -1,109 +1,39 @@
 import os
-import configparser
 from pathlib import Path
-import logging.config
-from dotenv import load_dotenv
-
-# Load environment variables from a .env file if it exists
-# This is useful for local development.
-load_dotenv()
+from .settings import settings  # Import the centralized settings object
 
 # --- Core Application Paths ---
+# These are derived from the file system and are not part of runtime configuration.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 CONFIG_DIR = BASE_DIR / "config"
-CONFIG_FILE = CONFIG_DIR / "config.ini"
-
-def get_layout_file() -> Path:
-    """
-    Determines the correct dashboard layout file to use.
-    It prioritizes the LAYOUT_FILE_OVERRIDE environment variable,
-    which is useful for testing, and falls back to the default file.
-    """
-    layout_file_path = os.getenv("LAYOUT_FILE_OVERRIDE")
-    if layout_file_path:
-        return Path(layout_file_path)
-    return CONFIG_DIR / "dashboard_layout.json"
-
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 ICON_FILE = BASE_DIR / "icon.png"
 
-# --- Application Metadata ---
-APP_NAME = "HWA Dashboard"
-APP_VERSION = "2.0.0"
-
-# --- Environment Configuration ---
-APP_ENV = os.getenv("APP_ENV", "production")  # "development" or "production"
-TESTING = os.getenv("TESTING_MODE", "0") == "1"
-
-# --- Configuration Loading ---
-config = configparser.ConfigParser()
-config.read(CONFIG_FILE)
-
-# --- Server Configuration ---
-# Load from environment variable first, then fallback to config file, then to a hardcoded default.
-SERVER_PORT = int(
-    os.getenv("SERVER_PORT", config.get("server", "PORT", fallback=63136))
-)
-SERVER_HOST = os.getenv("SERVER_HOST", config.get("server", "HOST", fallback="0.0.0.0"))
-BASE_URL = f"http://{SERVER_HOST}:{SERVER_PORT}"
-
-# --- HWA Connection Configuration ---
-HWA_HOSTNAME = os.getenv("HWA_HOSTNAME", config.get("tws", "hostname", fallback=None))
-HWA_PORT = int(os.getenv("HWA_PORT", config.get("tws", "port", fallback=31116)))
-HWA_USERNAME = os.getenv("HWA_USERNAME", config.get("tws", "username", fallback=None))
-HWA_PASSWORD = os.getenv("HWA_PASSWORD", config.get("tws", "password", fallback=None))
-
-# --- Database and Redis Configuration ---
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    config.get(
-        "database", "DATABASE_URL", fallback="sqlite+aiosqlite:///./hwa_dashboard.db"
-    ),
-)
-REDIS_URL = os.getenv(
-    "REDIS_URL", config.get("redis", "REDIS_URL", fallback="redis://localhost:6379")
-)
-
-# --- Monitoring Configuration ---
-_critical_statuses_str = config.get(
-    "monitoring", "critical_statuses", fallback="ABEND,ERROR,FAIL"
-)
-CRITICAL_STATUSES = [
-    status.strip().upper() for status in _critical_statuses_str.split(",")
-]
-MONITORING_POLL_INTERVAL = config.getint(
-    "monitoring", "poll_interval_seconds", fallback=30
-)
-
-# --- HWA Client Configuration ---
-HWA_HOW_MANY_LIMIT = config.getint("tws", "how_many_limit", fallback=500)
-
-# --- Security Configuration ---
-API_KEY = os.getenv("API_KEY", config.get("security", "API_KEY", fallback=None))
-
-# CORS Configuration
-_cors_origins_str = os.getenv("CORS_ALLOWED_ORIGINS") or config.get(
-    "server", "CORS_ALLOWED_ORIGINS", fallback=""
-)
-if _cors_origins_str:
-    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in _cors_origins_str.split(",")]
-elif APP_ENV == "development":
-    # In development mode, allow all origins for convenience with Vite.
-    CORS_ALLOWED_ORIGINS = ["*"]
-else:
-    # In production, default to a secure empty list, forcing explicit configuration.
-    CORS_ALLOWED_ORIGINS = []
+def get_layout_file() -> Path:
+    """
+    Determines the correct dashboard layout file to use.
+    It prioritizes the LAYOUT_FILE_OVERRIDE from settings,
+    which is useful for testing, and falls back to the default file.
+    """
+    # Use the value from the new settings object
+    if settings.LAYOUT_FILE_OVERRIDE:
+        return Path(settings.LAYOUT_FILE_OVERRIDE)
+    return CONFIG_DIR / "dashboard_layout.json"
 
 # --- Determine Application Path for Startup ---
 import sys
 
 if getattr(sys, "frozen", False):
+    # The application is running in a bundled executable (e.g., from PyInstaller)
     APP_PATH = sys.executable
 else:
+    # The application is running as a standard Python script
     APP_PATH = str(BASE_DIR / "main.py")
 
+
 # --- Structured Logging Configuration ---
+# This remains here as it's a static dictionary configuration.
 LOGGING_CONFIG = {
     "version": 1,
     "disable_existing_loggers": False,

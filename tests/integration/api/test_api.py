@@ -7,6 +7,7 @@ from pathlib import Path
 from src.api_server import app
 from src.api.hwa import get_hwa_client
 from src.core import config
+from src.core.settings import settings
 
 # Use FastAPI's TestClient
 client = TestClient(app)
@@ -26,6 +27,9 @@ def mock_hwa_client():
     client.model.query_workstations.return_value = [
         {"name": "CPU1", "status": "LINKED"}
     ]
+    # Also mock the OQL query methods to prevent RecursionError during JSON serialization
+    client.plan.execute_oql_query = AsyncMock(return_value=[])
+    client.model.execute_oql_query = AsyncMock(return_value=[])
     return client
 
 @pytest.fixture(autouse=True)
@@ -40,14 +44,14 @@ def override_hwa_dependency(mock_hwa_client):
 # --- Tests ---
 
 @pytest.mark.integration
-def test_dashboard_data_endpoint(monkeypatch, tmp_path):
+def test_dashboard_data_endpoint(monkeypatch):
     """
-    Tests the /api/dashboard_data endpoint, ensuring it works with temporary config files.
+    Tests the /api/dashboard_data endpoint, ensuring it works with the new settings model.
     """
-    # Create a dummy config file in the temporary directory
-    config_path = tmp_path / "config.ini"
-    config_path.write_text("[tws]\nhostname=test\nport=123\nusername=test\npassword=dummy_password")
-    monkeypatch.setattr(config, "CONFIG_FILE", config_path)
+    # Patch the settings object to ensure required values are present for the test
+    monkeypatch.setattr(settings, "HWA_HOSTNAME", "test_host")
+    monkeypatch.setattr(settings, "HWA_USERNAME", "test_user")
+    monkeypatch.setattr(settings, "HWA_PASSWORD", "test_pass")
 
     response = client.get("/api/dashboard_data")
 
@@ -91,17 +95,25 @@ def test_save_layout_endpoint(monkeypatch, tmp_path):
 
 
 @pytest.mark.integration
-def test_protected_endpoint_fails_without_api_key(monkeypatch):
+def test_api_key_security(monkeypatch):
     """
-    Tests that a protected endpoint returns a 500 error if the API_KEY is not configured.
+    Tests that the API key dependency correctly protects endpoints.
     """
-    # Temporarily disable the API_KEY in the config
-    monkeypatch.setattr(config, "API_KEY", None)
+    # Set a known API key for the test
+    test_key = "test-key-123"
+    monkeypatch.setattr(settings, "API_KEY", test_key)
 
-    # Attempt to access a protected endpoint with a dummy key
-    response = client.get("/api/oql?query=workstation", headers={"X-API-Key": "dummy_key"})
+    # 1. Test with no API key provided
+    response_no_key = client.get("/api/oql?q=workstation")
+    assert response_no_key.status_code == 401
+    assert "API Key is missing" in response_no_key.json()["detail"]
 
-    # Assert that the request was rejected with a 500 internal server error
-    assert response.status_code == 500
-    data = response.json()
-    assert "Application is not configured with an API_KEY" in data["detail"]
+    # 2. Test with an incorrect API key
+    response_wrong_key = client.get("/api/oql?q=workstation", headers={"X-API-Key": "wrong-key"})
+    assert response_wrong_key.status_code == 401
+    assert "Invalid or missing API Key" in response_wrong_key.json()["detail"]
+
+    # 3. Test with the correct API key (mocking the HWA client to avoid a real call)
+    response_correct_key = client.get("/api/oql?q=workstation", headers={"X-API-Key": test_key})
+    # Expect a 200 OK because the security dependency passed
+    assert response_correct_key.status_code == 200

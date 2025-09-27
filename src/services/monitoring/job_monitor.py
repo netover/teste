@@ -6,7 +6,7 @@ from typing import Dict, Optional
 from dataclasses import dataclass, asdict
 import redis.asyncio as redis
 
-from src.core import config
+from src.core.settings import settings
 from src.database.connection import AsyncSessionLocal
 from src.hwa_connector import HWAClient, HWAConnectionError, HWAAPIError
 from src.database.schema import JobStatusHistory
@@ -32,7 +32,7 @@ class JobStatusEvent:
         return d
 
 class JobMonitoringService:
-    def __init__(self, poll_interval: int = 30):
+    def __init__(self, poll_interval: int):
         self.redis_client: redis.Redis = None
         self.monitoring_active = False
         self.poll_interval = poll_interval
@@ -42,9 +42,9 @@ class JobMonitoringService:
     async def initialize(self):
         if self.is_initialized:
             return
-        self.redis_client = await redis.from_url(config.REDIS_URL, decode_responses=True)
+        self.redis_client = await redis.from_url(settings.REDIS_URL, decode_responses=True)
         self.is_initialized = True
-        logging.info(f"JobMonitoringService initialized with Redis at {config.REDIS_URL}")
+        logging.info(f"JobMonitoringService initialized with Redis at {settings.REDIS_URL}")
 
     async def start_monitoring(self):
         if self.monitoring_active:
@@ -68,8 +68,8 @@ class JobMonitoringService:
         logging.debug("Polling for job status...")
         try:
             async with HWAClient(
-                hostname=config.HWA_HOSTNAME, port=config.HWA_PORT,
-                username=config.HWA_USERNAME, password=config.HWA_PASSWORD
+                hostname=settings.HWA_HOSTNAME, port=settings.HWA_PORT,
+                username=settings.HWA_USERNAME, password=settings.HWA_PASSWORD
             ) as client:
                 current_jobs = await client.plan.query_job_streams()
         except (HWAConnectionError, HWAAPIError) as e:
@@ -129,7 +129,7 @@ class JobMonitoringService:
             logging.error(f"Failed to store job status history: {e}", exc_info=True)
 
     async def _check_alert_rules(self, event: JobStatusEvent):
-        if (event.new_status in config.CRITICAL_STATUSES and event.old_status not in config.CRITICAL_STATUSES):
+        if (event.new_status in settings.CRITICAL_STATUSES and event.old_status not in settings.CRITICAL_STATUSES):
             alert_data = {"type": "alert_notification", "data": {"severity": "HIGH", "title": "Job Failure", "job_name": event.job_stream_name, "status": event.new_status, "workstation": event.workstation, "timestamp": event.timestamp.isoformat(), "message": f"Job '{event.job_stream_name}' on workstation '{event.workstation}' failed with status: {event.new_status}."}}
             await self._send_alert(alert_data)
 
@@ -143,4 +143,4 @@ class JobMonitoringService:
         if self.redis_client:
             await self.redis_client.publish("job_updates", json.dumps(update_data))
 
-job_monitor = JobMonitoringService()
+job_monitor = JobMonitoringService(poll_interval=settings.MONITORING_POLL_INTERVAL)

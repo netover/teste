@@ -7,6 +7,7 @@ import threading
 import time
 
 from src.core import config
+from src.core.settings import settings
 from src.api_server import app  # Import the FastAPI app
 
 
@@ -15,11 +16,14 @@ def initial_setup():
     if not config.CONFIG_DIR.exists():
         config.CONFIG_DIR.mkdir(parents=True)
 
-    if not config.CONFIG_FILE.exists():
+    # This check for a template can be removed if config.ini is fully deprecated,
+    # but we'll leave it to support any legacy settings not yet in the pydantic model.
+    config_ini_path = config.CONFIG_DIR / "config.ini"
+    if not config_ini_path.exists():
         template_path = config.CONFIG_DIR / "config.ini.template"
         if template_path.exists():
-            logging.info(f"'{config.CONFIG_FILE}' not found. Creating from template.")
-            shutil.copyfile(template_path, config.CONFIG_FILE)
+            logging.info(f"'{config_ini_path}' not found. Creating from template.")
+            shutil.copyfile(template_path, config_ini_path)
         else:
             logging.warning(f"'{template_path}' not found. Cannot create config file.")
 
@@ -65,24 +69,21 @@ def run_server_in_thread(server):
     return thread
 
 
-def main(testing: bool = False):
+def main():
     """Main entry point for the application."""
-    if testing:
-        config.TESTING = True
-
     # Apply structured logging configuration
     logging.config.dictConfig(config.LOGGING_CONFIG)
 
     initial_setup()
 
     server_config = uvicorn.Config(
-        app, host=config.SERVER_HOST, port=config.SERVER_PORT, log_level="info"
+        app, host=settings.SERVER_HOST, port=settings.SERVER_PORT, log_level="info"
     )
     server = uvicorn.Server(server_config)
 
     # Check for GUI libraries at runtime to avoid import errors in headless envs
     pystray_available = False
-    if not os.environ.get("FORCE_CONSOLE_MODE") == "1":
+    if not settings.FORCE_CONSOLE_MODE:
         try:
             from src.desktop_app import run_tray_app, open_dashboard
 
@@ -101,7 +102,7 @@ def main(testing: bool = False):
         run_tray_app(server)  # This is a blocking call
     else:
         logging.warning("Running in console-only mode.")
-        logging.info(f"Please open your browser and navigate to {config.BASE_URL}")
+        logging.info(f"Please open your browser and navigate to {settings.BASE_URL}")
         server.run()
 
 

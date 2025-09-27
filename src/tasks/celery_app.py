@@ -1,14 +1,13 @@
-import os
 from celery import Celery
-from src.core import config
+from src.core.settings import settings
 
-# In testing mode, we use a different broker and backend
-if os.environ.get("TESTING"):
-    backend_override = os.environ.get("CELERY_RESULT_BACKEND_OVERRIDE")
+# In testing mode, we use a different broker and backend.
+# The settings object automatically handles loading from environment variables.
+if settings.TESTING:
     celery_app = Celery(
         "tasks",
         broker="memory://",
-        backend=backend_override or "file:///tmp/celery-results",
+        backend=settings.CELERY_RESULT_BACKEND_OVERRIDE or "file:///tmp/celery-results",
     )
     celery_app.conf.update(
         task_always_eager=True,
@@ -17,8 +16,8 @@ if os.environ.get("TESTING"):
 else:
     celery_app = Celery(
         "tasks",
-        broker=config.REDIS_URL,
-        backend=config.REDIS_URL,
+        broker=settings.REDIS_URL,
+        backend=settings.REDIS_URL,
         include=['src.tasks.ml_training'] # List of modules to import when the worker starts
     )
     celery_app.conf.update(

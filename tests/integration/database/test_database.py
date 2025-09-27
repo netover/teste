@@ -37,7 +37,7 @@ async def test_store_job_status_history(test_db_session, monkeypatch):
     )
 
     # Create a JobMonitoringService instance
-    service = JobMonitoringService()
+    service = JobMonitoringService(poll_interval=1)
 
     # Create a sample event
     event = JobStatusEvent(
